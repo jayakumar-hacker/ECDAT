@@ -1,0 +1,8 @@
+[package]
+name = "iot-service"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+ring = "0.17.8"
+sha2 = "0.10.8"

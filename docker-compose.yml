@@ -1,0 +1,39 @@
+# Docker is OPTIONAL - ECDAT does not require it (see README.md for the
+# plain uvicorn + npm run dev quick start). If you have Docker installed,
+# this brings up the whole stack - backend, frontend, and demo data -
+# with a single command:
+#
+#   docker compose up --build
+#
+# Then open http://localhost:3000 and log in with admin / EcdatDemo123!
+# (seeded automatically on backend startup - no extra setup step needed).
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - AI_ENABLED=false
+    volumes:
+      - ecdat_data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  ecdat_data:
