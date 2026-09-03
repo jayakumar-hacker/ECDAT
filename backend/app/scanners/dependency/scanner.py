@@ -14,12 +14,24 @@ import json
 import os
 import re
 
-_LIB_DB_PATH = os.path.join(
+_BUNDLED_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bundled_crypto_libraries.json")
+_KB_DB_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))),
     "knowledge-base", "libraries", "crypto_libraries.json",
 )
-with open(_LIB_DB_PATH, "r", encoding="utf-8") as f:
-    _CRYPTO_LIB_DB = json.load(f)
+_CRYPTO_LIB_DB: dict[str, dict] = {}
+if os.path.isfile(_BUNDLED_DB_PATH):
+    try:
+        with open(_BUNDLED_DB_PATH, "r", encoding="utf-8") as f:
+            _CRYPTO_LIB_DB.update(json.load(f))
+    except Exception:
+        pass
+if os.path.isfile(_KB_DB_PATH):
+    try:
+        with open(_KB_DB_PATH, "r", encoding="utf-8") as f:
+            _CRYPTO_LIB_DB.update(json.load(f))
+    except Exception:
+        pass
 
 
 def _lookup(name: str) -> dict | None:
@@ -27,8 +39,19 @@ def _lookup(name: str) -> dict | None:
     return _CRYPTO_LIB_DB.get(key)
 
 
-def _record(name: str, version: str, ecosystem: str, source_file: str) -> dict:
+def _record(
+    name: str,
+    version: str,
+    ecosystem: str,
+    source_file: str,
+    is_transitive: bool = False,
+    depth: int = 0,
+    parent_dependency: str = "",
+    provenance_chain: list[str] | None = None,
+) -> dict:
     info = _lookup(name)
+    chain = provenance_chain or ([name] if not is_transitive else [])
+    confidence = (0.9 if info else 0.3) if not is_transitive else (0.85 if info else 0.25)
     return {
         "name": name,
         "version": version or "unknown",
@@ -36,7 +59,11 @@ def _record(name: str, version: str, ecosystem: str, source_file: str) -> dict:
         "source_file": source_file,
         "crypto_related": info is not None,
         "known_algorithms": info["known_algorithms"] if info else [],
-        "confidence": 0.9 if info else 0.3,
+        "confidence": confidence,
+        "is_transitive": is_transitive,
+        "depth": depth,
+        "parent_dependency": parent_dependency,
+        "provenance_chain": chain,
     }
 
 
@@ -90,9 +117,20 @@ def _parse_pom_xml(path: str) -> list[dict]:
 def _parse_go_mod(path: str) -> list[dict]:
     deps = []
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
-        text = f.read()
-    for m in re.finditer(r"^\s*([a-zA-Z0-9_./\-]+)\s+(v[0-9][A-Za-z0-9_.\-+]*)", text, re.MULTILINE):
-        deps.append(_record(m.group(1), m.group(2), "go", path))
+        for line in f:
+            line_str = line.strip()
+            m = re.match(r"^\s*([a-zA-Z0-9_./\-]+)\s+(v[0-9][A-Za-z0-9_.\-+]*)", line_str)
+            if m:
+                name = m.group(1)
+                ver = m.group(2)
+                is_indirect = "// indirect" in line_str
+                deps.append(_record(
+                    name, ver, "go", path,
+                    is_transitive=is_indirect,
+                    depth=1 if is_indirect else 0,
+                    parent_dependency="go.mod (indirect)" if is_indirect else "",
+                    provenance_chain=["go.mod", name] if is_indirect else [name],
+                ))
     return deps
 
 
@@ -123,6 +161,40 @@ def _parse_dockerfile(path: str) -> list[dict]:
     return deps
 
 
+from app.scanners.dependency.lockfiles import (
+    parse_poetry_lock,
+    parse_package_lock_json,
+    parse_cargo_lock,
+    parse_go_sum,
+    parse_pnpm_lock_yaml,
+    parse_gemfile_lock,
+)
+
+
+def _parse_poetry_lock(path: str) -> list[dict]:
+    return parse_poetry_lock(path, _record)
+
+
+def _parse_package_lock_json(path: str) -> list[dict]:
+    return parse_package_lock_json(path, _record)
+
+
+def _parse_cargo_lock(path: str) -> list[dict]:
+    return parse_cargo_lock(path, _record)
+
+
+def _parse_go_sum(path: str) -> list[dict]:
+    return parse_go_sum(path, _record)
+
+
+def _parse_pnpm_lock_yaml(path: str) -> list[dict]:
+    return parse_pnpm_lock_yaml(path, _record)
+
+
+def _parse_gemfile_lock(path: str) -> list[dict]:
+    return parse_gemfile_lock(path, _record)
+
+
 _PARSERS = {
     "requirements.txt": _parse_requirements_txt,
     "pyproject.toml": _parse_pyproject_toml,
@@ -130,6 +202,12 @@ _PARSERS = {
     "pom.xml": _parse_pom_xml,
     "go.mod": _parse_go_mod,
     "Cargo.toml": _parse_cargo_toml,
+    "poetry.lock": _parse_poetry_lock,
+    "package-lock.json": _parse_package_lock_json,
+    "Cargo.lock": _parse_cargo_lock,
+    "go.sum": _parse_go_sum,
+    "pnpm-lock.yaml": _parse_pnpm_lock_yaml,
+    "Gemfile.lock": _parse_gemfile_lock,
 }
 
 
@@ -158,7 +236,7 @@ def scan_dependencies(root: str, errors: list) -> list[dict]:
                 deps.extend(_parse_dockerfile(path))
             elif base in _PARSERS:
                 deps.extend(_PARSERS[base](path))
-        except (OSError, UnicodeDecodeError, re.error) as e:
+        except Exception as e:
             errors.append({"scanner": "dependency", "level": "error", "message": str(e), "file": path})
 
     return deps

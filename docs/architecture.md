@@ -50,7 +50,10 @@ Repository / Files / Container
 - `app/api/` — one module per resource; thin, delegates to `app/services/`.
 - `app/core/` — config, database session, security (JWT/bcrypt), logging/audit.
 - `app/models/models.py` — all SQLAlchemy models in one module for clarity.
-- `app/scanners/` — one scanner per artefact type, each read-only.
+- `app/scanners/` — one scanner per artefact type, each read-only. Includes
+  manifest and lockfile parsers (poetry.lock, package-lock.json, Cargo.lock,
+  go.sum, pnpm-lock.yaml, Gemfile.lock) that construct offline dependency graphs
+  and resolve transitive cryptographic provenance.
 - `app/crypto/` — the offline knowledge base, detection patterns, classifier.
 - `app/services/` — orchestration and business logic (scan, risk, CBOM,
   recommendations, migration, reports).

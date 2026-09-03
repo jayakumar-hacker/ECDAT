@@ -172,6 +172,10 @@ class Dependency(Base):
     crypto_related = Column(Boolean, default=False)
     known_algorithms = Column(JSON, default=list)
     confidence = Column(Float, default=0.5)
+    is_transitive = Column(Boolean, default=False)
+    depth = Column(Integer, default=0)
+    parent_dependency = Column(String, default="")
+    provenance_chain = Column(JSON, default=list)
 
 
 class Asset(Base):

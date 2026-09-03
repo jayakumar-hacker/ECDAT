@@ -40,9 +40,17 @@ treating any ECDAT output as authoritative.
 
 ## Dependency scanning
 
-- Parses manifest files with format-specific lightweight parsers
-  (not a full package-manager resolver), so transitive dependencies
-  are not resolved — only what's directly declared in the manifest.
+- Parses manifest files (requirements.txt, pyproject.toml, package.json,
+  pom.xml, go.mod, Cargo.toml) and lockfiles (poetry.lock,
+  package-lock.json, Cargo.lock, go.sum, pnpm-lock.yaml, Gemfile.lock)
+  offline using lightweight parsers and a bundled offline crypto library dataset.
+- Transitive dependencies with known cryptographic capabilities are mapped
+  with depth and direct-dependency provenance chains (e.g. `direct -> intermediate -> target`).
+- **What is not covered**: Dynamic resolution when no lockfile exists (ECDAT
+  does not run `pip install`, `npm install`, `cargo build`, or network-based
+  package-manager resolvers), vendored/in-tree unmanifested dependencies,
+  private/internal registries not in the bundled database, and conditional
+  dependencies evaluated at runtime.
 - No CVE or vulnerability-database lookups are performed. ECDAT never
   fabricates a CVE number or severity; if you need CVE data, pair
   ECDAT's crypto-capability findings with a dedicated SCA tool.

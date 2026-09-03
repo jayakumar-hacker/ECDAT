@@ -71,6 +71,10 @@ def run_scan(db: Session, scan: models.Scan) -> models.Scan:
                         scan_id=scan.id, name=d["name"], version=d["version"], ecosystem=d["ecosystem"],
                         source_file=d["source_file"], crypto_related=d["crypto_related"],
                         known_algorithms=d["known_algorithms"], confidence=d["confidence"],
+                        is_transitive=d.get("is_transitive", False),
+                        depth=d.get("depth", 0),
+                        parent_dependency=d.get("parent_dependency", ""),
+                        provenance_chain=d.get("provenance_chain", []),
                     )
                     db.add(dep_row)
                     if d["crypto_related"]:
@@ -81,10 +85,20 @@ def run_scan(db: Session, scan: models.Scan) -> models.Scan:
                         )
                         db.add(lib_row)
                         for algo in d["known_algorithms"]:
+                            chain = d.get("provenance_chain", [])
+                            chain_str = " -> ".join(chain) if chain else d["name"]
+                            if d.get("is_transitive"):
+                                parent = d.get("parent_dependency") or (chain[0] if chain else "direct")
+                                depth = d.get("depth", 1)
+                                usage = f"Transitive crypto dependency: {d['name']} (depth {depth} via {parent})"
+                                evidence = f"{d['name']}=={d['version']} [transitive depth={depth} chain={chain_str}]"
+                            else:
+                                usage = f"Crypto-capable dependency: {d['name']}"
+                                evidence = f"{d['name']}=={d['version']}"
                             artefact = models.CryptographicArtefact(
                                 scan_id=scan.id, artefact_type="dependency", algorithm=algo,
-                                file=d["source_file"], language="", usage=f"Crypto-capable dependency: {d['name']}",
-                                purpose="", confidence=d["confidence"], evidence=f"{d['name']}=={d['version']}",
+                                file=d["source_file"], language="", usage=usage,
+                                purpose="", confidence=d["confidence"], evidence=evidence,
                                 library=d["name"],
                             )
                             db.add(artefact)
