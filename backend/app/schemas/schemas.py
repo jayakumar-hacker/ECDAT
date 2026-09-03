@@ -15,7 +15,7 @@ class TokenResponse(BaseModel):
 class ScanCreateRequest(BaseModel):
     target: str = Field(..., description="Absolute path to a directory or file to scan, or 'demo'")
     target_type: str = "directory"  # directory | file | demo
-    scanners: list[str] = Field(default_factory=lambda: ["source", "dependency", "certificate", "binary", "container"])
+    scanners: list[str] = Field(default_factory=lambda: ["source", "dependency", "certificate", "binary", "container", "config"])
 
 
 class MoscaSimulateRequest(BaseModel):

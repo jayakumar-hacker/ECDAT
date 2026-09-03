@@ -21,6 +21,7 @@ Repository / Files / Container
  | Certificate Scanner        |  app/scanners/certificate
  | Binary Scanner              |  app/scanners/binary
  | Container Scanner           |  app/scanners/container
+ | Config & Protocol Scanner  |  app/scanners/config
  -----------------------------
               |
      Crypto Intelligence        app/crypto (knowledge_base, classifier, algorithms)

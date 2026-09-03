@@ -38,6 +38,17 @@ treating any ECDAT output as authoritative.
   represented in the Dockerfile, or multi-stage build artifacts that
   aren't copied into the final visible context.
 
+## Config and protocol scanning
+
+- Parses static configuration files (sshd_config, nginx/apache ssl_protocols/ssl_ciphers,
+  openssl.cnf, java.security jdk.tls.disabledAlgorithms, Terraform aws_kms_key/ACM/ssl_policy,
+  and Kubernetes TLS Secrets / cert-manager CRDs).
+- **What is not covered**: Dynamic runtime protocol negotiation (ECDAT does not
+  perform live TLS handshakes or network connections), variables and expressions
+  in Terraform that are resolved dynamically via remote state or external secret
+  stores, non-standard custom ingress controllers, and encrypted configuration
+  files.
+
 ## Dependency scanning
 
 - Parses manifest files (requirements.txt, pyproject.toml, package.json,

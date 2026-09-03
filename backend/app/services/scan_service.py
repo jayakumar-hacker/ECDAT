@@ -19,9 +19,10 @@ from app.scanners.dependency.scanner import scan_dependencies
 from app.scanners.certificate.scanner import scan_certificates
 from app.scanners.binary.scanner import scan_binaries
 from app.scanners.container.scanner import scan_containers
+from app.scanners.config.scanner import scan_configs
 from app.core.logging import logger, audit
 
-VALID_SCANNERS = {"source", "dependency", "certificate", "binary", "container"}
+VALID_SCANNERS = {"source", "dependency", "certificate", "binary", "container", "config"}
 
 
 def run_scan(db: Session, scan: models.Scan) -> models.Scan:
@@ -181,6 +182,27 @@ def run_scan(db: Session, scan: models.Scan) -> models.Scan:
             except Exception as e:
                 errors.append({"scanner": "container", "level": "error", "message": str(e), "file": target})
                 logger.exception("Container scanner failed")
+
+        # 6. Config & protocol scanning
+        if "config" in requested:
+            try:
+                config_findings = scan_configs(target, errors)
+                for c in config_findings:
+                    artefact = models.CryptographicArtefact(
+                        scan_id=scan.id, artefact_type="config", algorithm=c["algorithm"],
+                        file=c["file"], line=c.get("line"), language=c.get("language", "config"),
+                        usage=c.get("usage", "Configured cryptographic parameter"),
+                        key_size=c.get("key_size"), purpose=c.get("purpose", ""),
+                        confidence=c.get("confidence", 0.85),
+                        evidence=c.get("evidence", ""),
+                        protocol=c.get("protocol", ""),
+                        component=c.get("component", ""),
+                    )
+                    db.add(artefact)
+                    artefact_count += 1
+            except Exception as e:
+                errors.append({"scanner": "config", "level": "error", "message": str(e), "file": target})
+                logger.exception("Config scanner failed")
 
         db.flush()
 
