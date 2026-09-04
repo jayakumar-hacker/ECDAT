@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.models import models
 from app.services.cbom_service import generate_cbom, cbom_to_csv
+from app.services.hndl_service import evaluate_hndl, resolve_threshold
 from app.core.config import settings
 
 
@@ -24,6 +25,7 @@ def build_report_data(db: Session, scan_id: str) -> dict:
     libraries = db.query(models.Library).filter(models.Library.scan_id == scan_id).all()
     migration_plans = db.query(models.MigrationPlan).join(models.Asset).filter(models.Asset.scan_id == scan_id).all()
     recommendations = db.query(models.Recommendation).join(models.Asset).filter(models.Asset.scan_id == scan_id).all()
+    hndl_matched = evaluate_hndl(db, scan_id=scan_id)
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -63,6 +65,11 @@ def build_report_data(db: Session, scan_id: str) -> dict:
             {"priority": p.priority, "rationale": p.rationale, "replacement": p.replacement, "blockers": p.blockers}
             for p in migration_plans
         ],
+        "hndl_lens": {
+            "threshold_years": resolve_threshold(None),
+            "count": len(hndl_matched),
+            "assets": hndl_matched,
+        },
         "certificates": [
             {"file": c.file, "subject": c.subject, "expired": c.expired, "days_remaining": c.days_remaining,
              "public_key_algorithm": c.public_key_algorithm, "key_size": c.key_size, "weak_key": c.weak_key,
@@ -83,11 +90,45 @@ def export_json(data: dict, path: str):
         json.dump(data, f, indent=2, default=str)
 
 
+def hndl_to_csv(db: Session, scan_id: str) -> str:
+    """CSV section for the HNDL exposure lens (additive, does not replace CBOM rows)."""
+    import csv as _csv
+    import io as _io
+    matched = evaluate_hndl(db, scan_id=scan_id)
+    output = _io.StringIO()
+    fieldnames = ["asset_id", "name", "algorithm", "purpose", "business_asset",
+                  "internet_exposed", "data_sensitivity", "data_retention_years",
+                  "hndl_exposed", "hndl_reason"]
+    writer = _csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for m in matched:
+        writer.writerow({
+            "asset_id": m.get("asset_id", ""),
+            "name": m.get("name", ""),
+            "algorithm": m.get("algorithm_name", ""),
+            "purpose": m.get("purpose", ""),
+            "business_asset": m.get("business_asset", ""),
+            "internet_exposed": m.get("internet_exposed", ""),
+            "data_sensitivity": m.get("data_sensitivity", ""),
+            "data_retention_years": m.get("data_retention_years", ""),
+            "hndl_exposed": m.get("hndl_exposed", ""),
+            "hndl_reason": m.get("hndl_reason", ""),
+        })
+    return output.getvalue()
+
+
 def export_csv(db: Session, scan_id: str, path: str):
     cbom = generate_cbom(db, scan_id)
     csv_text = cbom_to_csv(cbom)
+    # Append the HNDL exposure lens as an additional section (not a replacement).
+    hndl_section = hndl_to_csv(db, scan_id)
     with open(path, "w", encoding="utf-8") as f:
         f.write(csv_text)
+        f.write("\n")
+        f.write("# Harvest-now-decrypt-later (HNDL) exposure lens\n")
+        f.write(hndl_section)
+        if not hndl_section.endswith("\n"):
+            f.write("\n")
 
 
 def export_pdf(data: dict, path: str):

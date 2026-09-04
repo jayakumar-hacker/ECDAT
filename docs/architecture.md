@@ -47,6 +47,8 @@ Repository / Files / Container
       Diff-native CI mode        app/services/scan_service.py (git diff file_filter)
               |
       Policy-as-Code Gate        app/services/policy_service.py + app/cli.py
+              |
+     HNDL Exposure Lens          app/services/hndl_service.py + app/api/hndl.py
 ```
 
 ## Backend layout
@@ -68,6 +70,10 @@ Repository / Files / Container
 - `app/cli.py` — the `ecdat` command-line interface, including diff-native
   CI mode (`ecdat scan --since <git-ref>`) and the policy gate
   (`ecdat check-policy`). See `docs/diff-native-ci.md`.
+- `app/services/hndl_service.py` — the Harvest-now-decrypt-later (HNDL)
+  lens: a deterministic, read-only projection over Asset + BusinessAsset
+  rows that flags internet-exposed/captured-in-transit assets with
+  quantum-vulnerable key establishment and long data shelf-life.
 - `app/ai/` — deterministic + optional LLM-backed assistant.
 
 ## Data model
@@ -104,6 +110,29 @@ The `ecdat` CLI adds a gate-friendly layer on top of the scan pipeline:
 
 See `docs/diff-native-ci.md` for the rule reference and a copy-paste CI
 snippet.
+
+## Harvest-now-decrypt-later (HNDL) exposure lens
+
+The HNDL lens (`app/services/hndl_service.py`, `app/api/hndl.py`,
+`ecdat hndl`) is a read-only projection over existing data that flags
+assets matching all three of:
+
+1. internet-exposed **or** captured-in-transit (transport-crypto
+   protocol/library hints),
+2. long data shelf-life — using the existing
+   `BusinessAsset.data_retention_years` as the shelf-life proxy against a
+   configurable threshold (`HNDL_SHELF_LIFE_THRESHOLD_YEARS`, default 10),
+   with `data_sensitivity` / `business_criticality` carried as context,
+3. quantum-vulnerable key establishment (via the offline knowledge base and
+   the `Asset.purpose`/algorithm category).
+
+Each matched asset is tagged `hndl_exposed: true` with a human-readable
+`hndl_reason` (e.g. *"internet-exposed with quantum-vulnerable key exchange
+(RSA-2048) and long data shelf-life (7 years, RESTRICTED) — remediation
+deadline is effectively now, not Q-Day."*). The two fields are additive
+columns on `Asset`; no scanner output or risk-model shape changes. The view
+is exposed as an **additional section** in the existing JSON/CSV report
+exports (never a replacement).
 
 ## Frontend layout
 

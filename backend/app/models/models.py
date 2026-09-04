@@ -199,6 +199,10 @@ class Asset(Base):
     agility_score = Column(Integer, default=50)
     agility_factors = Column(JSON, default=list)
     migration_priority = Column(Float, default=1.0)
+    # Tier 2 - Harvest-now-decrypt-later (HNDL) lens (derived, additive).
+    # Populated by app/services/hndl_service.py:evaluate_hndl().
+    hndl_exposed = Column(Boolean, default=False)
+    hndl_reason = Column(Text, default="")
     created_at = Column(DateTime, default=now)
 
     business_asset = relationship("BusinessAsset", back_populates="assets")

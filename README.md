@@ -33,6 +33,11 @@ scans.
   changed since a git ref and enforces repository-level
   `ecdat-policy.yaml` rules, with machine-readable JSON output and
   merge-gate exit codes — see `docs/diff-native-ci.md`.
+- **Harvest-now-decrypt-later (HNDL) lens**: a read-only view flagging
+  internet-exposed/captured-in-transit assets that combine quantum-
+  vulnerable key establishment with long data shelf-life, exported as an
+  additional section of the JSON/CSV reports (`ecdat hndl`,
+  `GET /api/hndl`).
 - **Demo repository**: 6 fictional systems (Payment API, Auth Service,
   HR Portal, Public Website, Legacy App, IoT Service) across
   Python/JS/Java/Go/C/Rust with intentionally varied crypto usage,

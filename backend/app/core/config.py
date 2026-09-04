@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     # Mosca default threat horizon (years) - configurable per assessment, this is only the default
     DEFAULT_THREAT_HORIZON_YEARS: int = 10
 
+    # Tier 2 - Harvest-now-decrypt-later (HNDL) lens. An asset is flagged as
+    # HNDL-exposed when its data has a shelf-life (data_retention_years) at or
+    # above this threshold. Configurable, not a prediction.
+    HNDL_SHELF_LIFE_THRESHOLD_YEARS: int = 10
+
     # AI Assistant - optional, offline by default
     AI_ENABLED: bool = False
     AI_PROVIDER: str = "none"  # "none" | "ollama" | "openai_compatible"

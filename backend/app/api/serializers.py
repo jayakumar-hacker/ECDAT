@@ -26,6 +26,8 @@ def serialize_asset(a: models.Asset) -> dict:
         "agility_score": a.agility_score,
         "agility_factors": a.agility_factors,
         "migration_priority": a.migration_priority,
+        "hndl_exposed": bool(a.hndl_exposed),
+        "hndl_reason": a.hndl_reason or "",
         "business_asset": a.business_asset.name if a.business_asset else None,
         "risk": serialize_risk(a.risk_assessment) if a.risk_assessment else None,
         "mosca": serialize_mosca(a.mosca_assessment) if a.mosca_assessment else None,

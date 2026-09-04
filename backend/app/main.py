@@ -5,7 +5,7 @@ from app.core.config import settings
 from app.core.database import init_db, SessionLocal
 from app.core.seed import seed_all
 
-from app.api import auth, scans, assets, cbom, risks, mosca, recommendations, migration, certificates, reports, ai, dashboard, libraries
+from app.api import auth, scans, assets, cbom, risks, mosca, recommendations, migration, certificates, reports, ai, dashboard, libraries, hndl
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
 
@@ -30,6 +30,7 @@ app.include_router(libraries.router)
 app.include_router(reports.router)
 app.include_router(ai.router)
 app.include_router(dashboard.router)
+app.include_router(hndl.router)
 
 
 @app.on_event("startup")

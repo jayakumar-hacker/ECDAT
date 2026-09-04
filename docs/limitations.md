@@ -116,6 +116,28 @@ treating any ECDAT output as authoritative.
   scanner limitations above — a false negative in a scanner is a false
   negative in the gate.
 
+## Harvest-now-decrypt-later (HNDL) lens
+
+- The HNDL view (`app/services/hndl_service.py`, `ecdat hndl`,
+  `GET /api/hndl`) is a **derived lens, not a new scanner** — it re-reads
+  existing `Asset` + `BusinessAsset` rows and never executes or modifies
+  scanned code.
+- **What is not covered**:
+  - "Captured in transit" is inferred from `BusinessAsset.internet_exposed`
+    or small exact transport-crypto hints in the asset's component/location
+    (TLS/SSL/SSH/DTLS/QUIC/HTTPS/STARTTLS). Live packet capture, protocol
+    inspection, and runtime network state are never performed.
+  - "Long shelf-life" uses the existing `data_retention_years` field as a
+    proxy against a configurable threshold; ECDAT does not measure real
+    data lifetimes.
+  - Key-establishment / quantum-vulnerability determination inherits the
+    knowledge base's static entries and the source scanner's pattern-match
+    limits: an asset is only flagged if it *also* has business context
+    (an internet-exposed link or a transport hint) and a long shelf-life.
+    Assets with all three factors present but discovered through a
+    low-confidence scanner finding are still flagged (exposure/shelf-life
+    are not confidence-weighted).
+
 ## Migration simulator
 
 - Never fabricates benchmark numbers. Latency, computational overhead,

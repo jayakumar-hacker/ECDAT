@@ -14,6 +14,7 @@ from app.models import models
 from app.services.scan_service import run_scan
 from app.services.policy_service import load_policy, evaluate_policy, format_policy_report
 from app.services.migration_service import build_migration_plans_for_scan
+from app.services.hndl_service import evaluate_hndl, resolve_threshold
 from app.api.serializers import serialize_asset
 
 
@@ -40,6 +41,14 @@ def build_parser() -> argparse.ArgumentParser:
     pol_p.add_argument("--policy", dest="policy_path", default=None, help="Path to ecdat-policy.yaml")
     pol_p.add_argument("--scan-id", default=None, help="Existing scan ID to evaluate")
     pol_p.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    # HNDL lens command
+    hndl_p = subparsers.add_parser("hndl", help="Harvest-now-decrypt-later (HNDL) exposure lens over prior scans")
+    hndl_p.add_argument("target", nargs="?", default=".", help="Target directory whose most recent scan should be evaluated")
+    hndl_p.add_argument("--scan-id", default=None, help="Existing scan ID to evaluate")
+    hndl_p.add_argument("--shelf-life-threshold-years", dest="threshold_years", type=int, default=None,
+                        help="Override the shelf-life threshold in years (default from settings)")
+    hndl_p.add_argument("--json", action="store_true", help="Output results in JSON format")
 
     return parser
 
@@ -141,6 +150,50 @@ def main(args: list[str] | None = None) -> int:
                 print(format_policy_report(violations, loaded_path or ""))
 
             return 1 if violations else 0
+        finally:
+            db.close()
+
+    elif parsed.command == "hndl":
+        db = SessionLocal()
+        try:
+            scan = None
+            if parsed.scan_id:
+                scan = db.query(models.Scan).filter(models.Scan.id == parsed.scan_id).first()
+            if not scan:
+                scan = db.query(models.Scan).filter(models.Scan.target == target).order_by(models.Scan.created_at.desc()).first()
+
+            if not scan:
+                print(f"Error: No scan found for target {target}. Run 'ecdat scan' first.", file=sys.stderr)
+                return 2
+
+            matched = evaluate_hndl(db, scan_id=scan.id, shelf_life_threshold_years=parsed.threshold_years)
+            threshold = resolve_threshold(parsed.threshold_years)
+
+            if parsed.json:
+                print(json.dumps({
+                    "scan_id": scan.id,
+                    "threshold_years": threshold,
+                    "count": len(matched),
+                    "assets": matched,
+                }, indent=2, default=str))
+            else:
+                print("=" * 70)
+                print("ECDAT Harvest-now-decrypt-later (HNDL) Exposure Lens")
+                print(f"Scan: {scan.id} | Target: {scan.target}")
+                print(f"Shelf-life threshold: {threshold} years")
+                print("=" * 70)
+                if not matched:
+                    print("Status: [PASS] - No asset matches the HNDL profile "
+                          "(internet-exposed/captured-in-transit + long shelf-life + quantum-vulnerable key exchange).")
+                else:
+                    print(f"Status: {len(matched)} asset(s) match the HNDL profile:")
+                    print("-" * 70)
+                    for i, m in enumerate(matched, start=1):
+                        print(f"{i}. [{m['algorithm_name']}] {m['name']} ({m['location']})")
+                        print(f"   Reason: {m['hndl_reason']}")
+                    print("-" * 70)
+                    print("Action required: treat as harvest-now-decrypt-later risk; remediate now, not at Q-Day.")
+            return 0
         finally:
             db.close()
 
