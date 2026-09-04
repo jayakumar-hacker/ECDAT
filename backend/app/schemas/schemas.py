@@ -16,6 +16,8 @@ class ScanCreateRequest(BaseModel):
     target: str = Field(..., description="Absolute path to a directory or file to scan, or 'demo'")
     target_type: str = "directory"  # directory | file | demo
     scanners: list[str] = Field(default_factory=lambda: ["source", "dependency", "certificate", "binary", "container", "config"])
+    since: str | None = Field(default=None, description="Git ref to scan changes since (diff-native scan)")
+    policy_path: str | None = Field(default=None, description="Optional path to ecdat-policy.yaml")
 
 
 class MoscaSimulateRequest(BaseModel):

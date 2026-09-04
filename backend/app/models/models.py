@@ -54,6 +54,9 @@ class Scan(Base):
     files_scanned = Column(Integer, default=0)
     artefacts_found = Column(Integer, default=0)
     errors = Column(JSON, default=list)
+    since_git_ref = Column(String, nullable=True)
+    policy_violations = Column(JSON, default=list)
+    policy_status = Column(String, default="NOT_RUN")  # NOT_RUN | PASS | FAIL
     created_at = Column(DateTime, default=now)
     created_by = Column(String, nullable=True)
 

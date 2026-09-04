@@ -25,9 +25,60 @@ from app.core.logging import logger, audit
 VALID_SCANNERS = {"source", "dependency", "certificate", "binary", "container", "config"}
 
 
-def run_scan(db: Session, scan: models.Scan) -> models.Scan:
+def get_changed_files_since(target_dir: str, git_ref: str) -> set[str]:
+    """
+    Returns set of paths of files modified or added since git_ref.
+    """
+    import subprocess
+    if not os.path.isdir(target_dir):
+        return {os.path.abspath(target_dir)}
+
+    res = subprocess.run(
+        ["git", "diff", "--name-only", git_ref],
+        cwd=target_dir,
+        capture_output=True,
+        text=True,
+    )
+    if res.returncode != 0:
+        raise RuntimeError(f"git diff failed: {res.stderr.strip()}")
+
+    changed = set()
+    for line in res.stdout.splitlines():
+        rel = line.strip()
+        if rel:
+            changed.add(rel)
+            changed.add(rel.replace("\\", "/"))
+            changed.add(os.path.abspath(os.path.join(target_dir, rel)))
+
+    # Also capture untracked / new files
+    res_untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        cwd=target_dir,
+        capture_output=True,
+        text=True,
+    )
+    if res_untracked.returncode == 0:
+        for line in res_untracked.stdout.splitlines():
+            rel = line.strip()
+            if rel:
+                changed.add(rel)
+                changed.add(rel.replace("\\", "/"))
+                changed.add(os.path.abspath(os.path.join(target_dir, rel)))
+
+    return changed
+
+
+def run_scan(
+    db: Session,
+    scan: models.Scan,
+    since_ref: str | None = None,
+    changed_files: set[str] | None = None,
+    policy_path: str | None = None,
+) -> models.Scan:
     scan.status = "running"
     scan.start_time = datetime.now(timezone.utc)
+    if since_ref:
+        scan.since_git_ref = since_ref
     db.commit()
 
     target = scan.target
@@ -44,11 +95,20 @@ def run_scan(db: Session, scan: models.Scan) -> models.Scan:
         db.commit()
         return scan
 
+    # Resolve git diff if since_ref requested
+    if since_ref and changed_files is None:
+        try:
+            changed_files = get_changed_files_since(target, since_ref)
+        except Exception as e:
+            errors.append({"scanner": "orchestrator", "level": "warning",
+                           "message": f"Could not compute git diff since {since_ref}: {e}", "file": target})
+            changed_files = None
+
     try:
         # 1. Source code scanning
         if "source" in requested:
             try:
-                findings, files_scanned = scan_source(target, errors)
+                findings, files_scanned = scan_source(target, errors, file_filter=changed_files)
                 total_files_scanned += files_scanned
                 for f in findings:
                     artefact = models.CryptographicArtefact(
@@ -66,7 +126,7 @@ def run_scan(db: Session, scan: models.Scan) -> models.Scan:
         # 2. Dependency scanning
         if "dependency" in requested:
             try:
-                deps = scan_dependencies(target, errors)
+                deps = scan_dependencies(target, errors, file_filter=changed_files)
                 for d in deps:
                     dep_row = models.Dependency(
                         scan_id=scan.id, name=d["name"], version=d["version"], ecosystem=d["ecosystem"],
@@ -111,7 +171,7 @@ def run_scan(db: Session, scan: models.Scan) -> models.Scan:
         # 3. Certificate scanning
         if "certificate" in requested:
             try:
-                certs = scan_certificates(target, errors)
+                certs = scan_certificates(target, errors, file_filter=changed_files)
                 for c in certs:
                     cert_row = models.Certificate(
                         scan_id=scan.id, file=c["file"], subject=c.get("subject", ""),
@@ -153,7 +213,7 @@ def run_scan(db: Session, scan: models.Scan) -> models.Scan:
         # 4. Binary scanning
         if "binary" in requested:
             try:
-                bin_findings = scan_binaries(target, errors)
+                bin_findings = scan_binaries(target, errors, file_filter=changed_files)
                 for b in bin_findings:
                     artefact = models.CryptographicArtefact(
                         scan_id=scan.id, artefact_type="binary", algorithm=b["label"], file=b["file"],
@@ -169,7 +229,7 @@ def run_scan(db: Session, scan: models.Scan) -> models.Scan:
         # 5. Container scanning
         if "container" in requested:
             try:
-                container_result = scan_containers(target, errors)
+                container_result = scan_containers(target, errors, file_filter=changed_files)
                 for pkg_dep in container_result["crypto_packages"]:
                     for algo in pkg_dep["known_algorithms"]:
                         artefact = models.CryptographicArtefact(
@@ -186,7 +246,7 @@ def run_scan(db: Session, scan: models.Scan) -> models.Scan:
         # 6. Config & protocol scanning
         if "config" in requested:
             try:
-                config_findings = scan_configs(target, errors)
+                config_findings = scan_configs(target, errors, file_filter=changed_files)
                 for c in config_findings:
                     artefact = models.CryptographicArtefact(
                         scan_id=scan.id, artefact_type="config", algorithm=c["algorithm"],
@@ -216,6 +276,17 @@ def run_scan(db: Session, scan: models.Scan) -> models.Scan:
         # Build Asset rows from artefacts (group source/certificate findings into assets)
         from app.services.risk_service import build_assets_from_artefacts
         build_assets_from_artefacts(db, scan.id)
+
+        # Policy-as-code evaluation
+        from app.services.policy_service import load_policy, evaluate_policy
+        policy_dict, loaded_policy_path = load_policy(policy_path or target)
+        if policy_dict:
+            violations = evaluate_policy(policy_dict, scan, db)
+            scan.policy_violations = violations
+            scan.policy_status = "FAIL" if violations else "PASS"
+        else:
+            scan.policy_violations = []
+            scan.policy_status = "NOT_RUN"
 
         scan.status = "completed"
         scan.files_scanned = total_files_scanned

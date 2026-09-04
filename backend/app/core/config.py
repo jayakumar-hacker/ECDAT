@@ -32,6 +32,9 @@ class Settings(BaseSettings):
         ".git", "node_modules", "__pycache__", ".venv", "venv",
         "dist", "build", ".mypy_cache", ".pytest_cache", "target",
     )
+    SCAN_EXCLUDED_FILES: tuple = (
+        "ecdat-policy.yaml", "ecdat-policy.yml", ".ecdat-policy.yaml", ".ecdat-policy.yml",
+    )
 
     # Risk scoring thresholds (documented as ECDAT model, not an official standard)
     RISK_LOW_MAX: int = 24

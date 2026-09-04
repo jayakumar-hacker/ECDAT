@@ -211,13 +211,27 @@ _PARSERS = {
 }
 
 
-def scan_dependencies(root: str, errors: list) -> list[dict]:
+def _matches_filter(path: str, file_filter: set[str] | None) -> bool:
+    if file_filter is None:
+        return True
+    norm_abs = os.path.abspath(path)
+    norm_slash = norm_abs.replace("\\", "/")
+    basename = os.path.basename(path)
+    for f in file_filter:
+        f_norm = os.path.abspath(f) if not os.path.isabs(f) else f
+        if norm_abs == f_norm or norm_slash.endswith(f.replace("\\", "/")) or basename == f:
+            return True
+    return False
+
+
+def scan_dependencies(root: str, errors: list, file_filter: set[str] | None = None) -> list[dict]:
     """Walk the tree looking for manifest files and parse each with its dedicated parser."""
     from app.core.config import settings
     deps: list[dict] = []
     targets = []
     if os.path.isfile(root):
-        targets = [root]
+        if _matches_filter(root, file_filter):
+            targets = [root]
         walk_root = None
     else:
         walk_root = root
@@ -227,7 +241,9 @@ def scan_dependencies(root: str, errors: list) -> list[dict]:
             dirnames[:] = [d for d in dirnames if d not in settings.SCAN_EXCLUDED_DIRS and not d.startswith(".")]
             for fn in filenames:
                 if fn in _PARSERS or fn in ("Dockerfile",) or fn.endswith(".dockerfile"):
-                    targets.append(os.path.join(dirpath, fn))
+                    p = os.path.join(dirpath, fn)
+                    if _matches_filter(p, file_filter):
+                        targets.append(p)
 
     for path in targets:
         base = os.path.basename(path)

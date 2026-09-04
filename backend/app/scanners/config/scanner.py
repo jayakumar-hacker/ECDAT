@@ -650,7 +650,20 @@ def _scan_k8s_cert_manager(path: str) -> list[dict]:
     return findings
 
 
-def scan_configs(root: str, errors: list) -> list[dict]:
+def _matches_filter(path: str, file_filter: set[str] | None) -> bool:
+    if file_filter is None:
+        return True
+    norm_abs = os.path.abspath(path)
+    norm_slash = norm_abs.replace("\\", "/")
+    basename = os.path.basename(path)
+    for f in file_filter:
+        f_norm = os.path.abspath(f) if not os.path.isabs(f) else f
+        if norm_abs == f_norm or norm_slash.endswith(f.replace("\\", "/")) or basename == f:
+            return True
+    return False
+
+
+def scan_configs(root: str, errors: list, file_filter: set[str] | None = None) -> list[dict]:
     """
     Scans candidate configuration and protocol files across root directory or single file.
     Returns list of CryptographicArtefact finding dicts.
@@ -659,12 +672,15 @@ def scan_configs(root: str, errors: list) -> list[dict]:
     targets: list[str] = []
 
     if os.path.isfile(root):
-        targets = [root]
+        if _matches_filter(root, file_filter):
+            targets = [root]
     else:
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if d not in settings.SCAN_EXCLUDED_DIRS and not d.startswith(".")]
             for fn in filenames:
-                targets.append(os.path.join(dirpath, fn))
+                p = os.path.join(dirpath, fn)
+                if _matches_filter(p, file_filter):
+                    targets.append(p)
 
     for path in targets:
         base = os.path.basename(path).lower()

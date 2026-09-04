@@ -88,19 +88,34 @@ def _parse_one(path: str) -> dict:
     }
 
 
-def scan_certificates(root: str, errors: list) -> list[dict]:
+def _matches_filter(path: str, file_filter: set[str] | None) -> bool:
+    if file_filter is None:
+        return True
+    norm_abs = os.path.abspath(path)
+    norm_slash = norm_abs.replace("\\", "/")
+    basename = os.path.basename(path)
+    for f in file_filter:
+        f_norm = os.path.abspath(f) if not os.path.isabs(f) else f
+        if norm_abs == f_norm or norm_slash.endswith(f.replace("\\", "/")) or basename == f:
+            return True
+    return False
+
+
+def scan_certificates(root: str, errors: list, file_filter: set[str] | None = None) -> list[dict]:
     from app.core.config import settings
     results = []
     targets = []
     if os.path.isfile(root):
-        if os.path.splitext(root)[1].lower() in CERT_EXTENSIONS:
+        if os.path.splitext(root)[1].lower() in CERT_EXTENSIONS and _matches_filter(root, file_filter):
             targets = [root]
     else:
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if d not in settings.SCAN_EXCLUDED_DIRS and not d.startswith(".")]
             for fn in filenames:
                 if os.path.splitext(fn)[1].lower() in CERT_EXTENSIONS:
-                    targets.append(os.path.join(dirpath, fn))
+                    p = os.path.join(dirpath, fn)
+                    if _matches_filter(p, file_filter):
+                        targets.append(p)
 
     for path in targets:
         try:

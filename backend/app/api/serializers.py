@@ -11,6 +11,9 @@ def serialize_scan(s: models.Scan) -> dict:
         "scanners_requested": s.scanners_requested, "status": s.status,
         "start_time": dt(s.start_time), "end_time": dt(s.end_time),
         "files_scanned": s.files_scanned, "artefacts_found": s.artefacts_found,
+        "since_git_ref": s.since_git_ref,
+        "policy_status": s.policy_status,
+        "policy_violations": s.policy_violations,
         "errors": s.errors, "created_at": dt(s.created_at),
     }
 

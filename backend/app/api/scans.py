@@ -46,7 +46,7 @@ def create_scan(req: ScanCreateRequest, background_tasks: BackgroundTasks,
         session = SessionLocal()
         try:
             s = session.query(models.Scan).filter(models.Scan.id == scan_id).first()
-            run_scan(session, s)
+            run_scan(session, s, since_ref=req.since, policy_path=req.policy_path)
             build_recommendations_for_scan(session, scan_id)
             build_migration_plans_for_scan(session, scan_id)
         finally:

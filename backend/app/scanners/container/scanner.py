@@ -25,18 +25,33 @@ def _parse_base_image(dockerfile_path: str) -> list[str]:
     return images
 
 
-def scan_containers(root: str, errors: list) -> dict:
+def _matches_filter(path: str, file_filter: set[str] | None) -> bool:
+    if file_filter is None:
+        return True
+    norm_abs = os.path.abspath(path)
+    norm_slash = norm_abs.replace("\\", "/")
+    basename = os.path.basename(path)
+    for f in file_filter:
+        f_norm = os.path.abspath(f) if not os.path.isabs(f) else f
+        if norm_abs == f_norm or norm_slash.endswith(f.replace("\\", "/")) or basename == f:
+            return True
+    return False
+
+
+def scan_containers(root: str, errors: list, file_filter: set[str] | None = None) -> dict:
     from app.core.config import settings
     dockerfiles = []
     if os.path.isfile(root):
-        if os.path.basename(root) in ("Dockerfile",) or root.endswith(".dockerfile"):
+        if (os.path.basename(root) in ("Dockerfile",) or root.endswith(".dockerfile")) and _matches_filter(root, file_filter):
             dockerfiles = [root]
     else:
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if d not in settings.SCAN_EXCLUDED_DIRS and not d.startswith(".")]
             for fn in filenames:
                 if fn == "Dockerfile" or fn.endswith(".dockerfile"):
-                    dockerfiles.append(os.path.join(dirpath, fn))
+                    p = os.path.join(dirpath, fn)
+                    if _matches_filter(p, file_filter):
+                        dockerfiles.append(p)
 
     base_images = []
     crypto_packages = []

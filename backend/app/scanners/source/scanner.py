@@ -15,14 +15,32 @@ from app.crypto.classifier import classify_line, dedupe_findings
 from app.core.config import settings
 
 
-def _iter_candidate_files(root: str):
+def _matches_filter(path: str, file_filter: set[str] | None) -> bool:
+    if file_filter is None:
+        return True
+    norm_abs = os.path.abspath(path)
+    norm_slash = norm_abs.replace("\\", "/")
+    basename = os.path.basename(path)
+    for f in file_filter:
+        f_norm = os.path.abspath(f) if not os.path.isabs(f) else f
+        if norm_abs == f_norm or norm_slash.endswith(f.replace("\\", "/")) or basename == f:
+            return True
+    return False
+
+
+def _iter_candidate_files(root: str, file_filter: set[str] | None = None):
     if os.path.isfile(root):
-        yield root
+        if _matches_filter(root, file_filter):
+            yield root
         return
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in settings.SCAN_EXCLUDED_DIRS and not d.startswith(".")]
         for fn in filenames:
-            yield os.path.join(dirpath, fn)
+            if fn in getattr(settings, "SCAN_EXCLUDED_FILES", ()) or fn.startswith("ecdat-policy"):
+                continue
+            full = os.path.join(dirpath, fn)
+            if _matches_filter(full, file_filter):
+                yield full
 
 
 def _detect_language(path: str) -> str | None:
@@ -33,13 +51,13 @@ def _detect_language(path: str) -> str | None:
     return SUPPORTED_SOURCE_EXTENSIONS.get(ext)
 
 
-def scan_source(root: str, errors: list, max_files: int | None = None) -> tuple[list[dict], int]:
+def scan_source(root: str, errors: list, max_files: int | None = None, file_filter: set[str] | None = None) -> tuple[list[dict], int]:
     """Returns (findings, files_scanned_count)."""
     findings: list[dict] = []
     files_scanned = 0
     max_files = max_files or settings.MAX_FILES_PER_SCAN
 
-    for path in _iter_candidate_files(root):
+    for path in _iter_candidate_files(root, file_filter=file_filter):
         if files_scanned >= max_files:
             errors.append({"scanner": "source", "level": "warning",
                             "message": f"Reached max_files limit ({max_files}); scan truncated.", "file": path})
