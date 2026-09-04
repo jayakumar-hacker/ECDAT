@@ -71,6 +71,15 @@ treating any ECDAT output as authoritative.
 - The 0-100 risk score is the **ECDAT scoring model**
   (`docs/risk-model.md`), not an official NIST or CVSS score.
 
+## Crypto-agility scoring & migration priority view
+
+- Scores crypto-agility on a static 0-100 scale based on:
+  1. Abstraction mechanism (config-driven vs interface/provider abstraction vs compile-time constant),
+  2. Dependency version pinning (strictly pinned vs range-pinned vs floating/unpinned),
+  3. Call-site blast radius (number of direct reference sites across codebase).
+- Derives a prioritized migration metric: `migration_priority = risk_score / max(1, agility_score)` so high-risk, low-agility assets surface first.
+- **What is not covered**: Dynamic runtime call-graph depth (ECDAT does not execute code or perform whole-program AST flow analysis), dynamic reflection-based provider lookups, and organizational refactoring costs beyond static code/config evidence.
+
 ## Mosca analysis
 
 - The threat horizon `Z` is a configurable assumption, not a

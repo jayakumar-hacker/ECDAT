@@ -193,6 +193,9 @@ class Asset(Base):
     component = Column(String, default="")
     location = Column(String, default="")  # file:line
     confidence = Column(Float, default=0.5)
+    agility_score = Column(Integer, default=50)
+    agility_factors = Column(JSON, default=list)
+    migration_priority = Column(Float, default=1.0)
     created_at = Column(DateTime, default=now)
 
     business_asset = relationship("BusinessAsset", back_populates="assets")
@@ -245,6 +248,8 @@ class RiskAssessment(Base):
     score = Column(Integer, default=0)
     severity = Column(String, default="LOW")  # LOW|MEDIUM|HIGH|CRITICAL
     factors = Column(JSON, default=list)  # [{"name":..., "impact":...}]
+    agility_score = Column(Integer, default=50)
+    migration_priority = Column(Float, default=1.0)
     computed_at = Column(DateTime, default=now)
 
     asset = relationship("Asset", back_populates="risk_assessment")
@@ -294,6 +299,8 @@ class MigrationPlan(Base):
     affected_dependencies = Column(JSON, default=list)
     risk_before = Column(Integer, nullable=True)
     risk_after_estimate = Column(String, default="Estimated")  # "Not measured"|"Estimated"|"User supplied"
+    agility_score = Column(Integer, default=50)
+    migration_priority_score = Column(Float, default=1.0)
     created_at = Column(DateTime, default=now)
 
     asset = relationship("Asset")

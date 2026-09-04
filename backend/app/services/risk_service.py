@@ -77,7 +77,7 @@ def build_assets_from_artefacts(db: Session, scan_id: str):
         for item in items:
             item.asset_id = asset.id
 
-        compute_risk_for_asset(db, asset)
+        compute_risk_for_asset(db, asset, artefacts=items)
         compute_mosca_for_asset(db, asset)
 
     db.commit()
@@ -93,7 +93,165 @@ def _severity_for_score(score: int) -> str:
     return "CRITICAL"
 
 
-def compute_risk_for_asset(db: Session, asset: models.Asset) -> models.RiskAssessment:
+def compute_agility_for_asset(
+    db: Session,
+    asset: models.Asset,
+    artefacts: list[models.CryptographicArtefact] | None = None,
+    risk_score: int | None = None,
+) -> tuple[int, list[dict], float]:
+    """
+    Computes a deterministic static 0-100 crypto-agility score based on:
+    1. Abstraction / Mechanism (15 - 50 pts):
+       - Config-driven (sshd_config, nginx/apache, openssl.cnf, java.security, terraform, k8s/cert-manager) -> 50
+       - Provider / Interface abstraction (factory, getInstance, wrapper, dependency) -> 35
+       - Certificate leaf -> 30
+       - Binary/container linkage -> 20
+       - Compile-time constant / direct source instantiation -> 15
+    2. Version Pinning (5 - 25 pts):
+       - Strictly pinned version -> 25
+       - Range-pinned / semver floating -> 15
+       - Floating / unpinned / unknown -> 5
+       - Non-dependency with lockfiles present -> 25 (otherwise 15)
+    3. Call-site Blast Radius (3 - 25 pts):
+       - 1 call site -> 25
+       - 2-4 call sites -> 18
+       - 5-10 call sites -> 10
+       - >10 call sites -> 3
+
+    Returns (agility_score, agility_factors, migration_priority).
+    migration_priority = round(risk_score / max(1.0, float(agility_score)), 2)
+    so high-risk + low-agility assets surface first.
+    """
+    import re
+    if artefacts is None:
+        artefacts = db.query(models.CryptographicArtefact).filter(
+            models.CryptographicArtefact.asset_id == asset.id
+        ).all()
+
+    # 1. Abstraction / Mechanism
+    is_config = (
+        asset.asset_type == "config"
+        or any(a.artefact_type == "config" for a in artefacts)
+        or any(
+            (a.file or "").endswith((".conf", ".cnf", ".yaml", ".yml", ".tf", ".tfvars", "sshd_config", "java.security"))
+            for a in artefacts
+        )
+        or (asset.location or "").endswith((".conf", ".cnf", ".yaml", ".yml", ".tf", ".tfvars", "sshd_config", "java.security"))
+    )
+
+    has_abstraction = any(
+        re.search(r"\b(getInstance|Provider|Factory|KeyManager|AlgorithmParameters|KeyAgreement|CipherSuite)\b", a.evidence or "", re.IGNORECASE)
+        or a.artefact_type == "dependency"
+        for a in artefacts
+    )
+
+    is_cert = asset.asset_type == "certificate" or any(a.artefact_type == "certificate" for a in artefacts)
+    is_binary_container = any(a.artefact_type in ("binary", "container") for a in artefacts)
+
+    if is_config:
+        abs_val = "config_driven"
+        abs_score = 50
+        abs_detail = "Config-driven: Algorithm is externally configured via configuration file or infrastructure policy (highest agility, no code recompile required)."
+    elif has_abstraction:
+        abs_val = "interface_provider_abstraction"
+        abs_score = 35
+        abs_detail = "Provider/Interface abstraction: Algorithm accessed via security provider, factory, or library interface."
+    elif is_cert:
+        abs_val = "certificate_authority_managed"
+        abs_score = 30
+        abs_detail = "Certificate-managed: Key and algorithm governed by X.509 certificate renewal lifecycle."
+    elif is_binary_container:
+        abs_val = "binary_or_container_linkage"
+        abs_score = 20
+        abs_detail = "Static linkage: Cryptographic capability linked into binary or container base image."
+    else:
+        abs_val = "compile_time_constant"
+        abs_score = 15
+        abs_detail = "Compile-time constant: Algorithm is hardcoded or directly instantiated in source code (lowest agility, code change required)."
+
+    # 2. Version Pinning
+    dep = None
+    if asset.scan_id:
+        if asset.component:
+            dep = db.query(models.Dependency).filter(
+                models.Dependency.scan_id == asset.scan_id,
+                models.Dependency.name.ilike(asset.component),
+            ).first()
+        if not dep and asset.location:
+            loc_file = asset.location.split(":")[0]
+            dep = db.query(models.Dependency).filter(
+                models.Dependency.scan_id == asset.scan_id,
+                models.Dependency.source_file == loc_file,
+            ).first()
+
+    if dep:
+        ver = (dep.version or "").strip()
+        ver_lower = ver.lower()
+        if ver_lower in ("unknown", "", "*", "latest"):
+            pin_val = "floating_unpinned"
+            pin_score = 5
+            pin_detail = f"Floating version: Dependency {dep.name} is unpinned or unknown ({ver or 'unversioned'})."
+        elif any(sym in ver for sym in ("^", "~", ">", "<")) and not ver.startswith("==") and not ver.startswith("="):
+            pin_val = "range_pinned"
+            pin_score = 15
+            pin_detail = f"Range-pinned: Dependency {dep.name} uses floating range specifier ({ver})."
+        else:
+            pin_val = "strictly_pinned"
+            pin_score = 25
+            pin_detail = f"Strictly pinned: Dependency {dep.name} has fixed pinned version ({ver})."
+    else:
+        has_lockfiles = False
+        if asset.scan_id:
+            has_lockfiles = db.query(models.Dependency).filter(
+                models.Dependency.scan_id == asset.scan_id,
+                models.Dependency.is_transitive.is_(True),
+            ).first() is not None
+        if has_lockfiles:
+            pin_val = "repo_lockfile_managed"
+            pin_score = 25
+            pin_detail = "Environment dependencies are managed and locked via repository lockfile."
+        else:
+            pin_val = "untracked_version"
+            pin_score = 15
+            pin_detail = "Non-dependency asset without explicit repository-wide dependency lockfile."
+
+    # 3. Call-site Blast Radius
+    call_sites = len(artefacts) if artefacts else 1
+    if call_sites <= 1:
+        site_val = "single_site"
+        site_score = 25
+        site_detail = "1 direct call site (isolated, single point of migration)."
+    elif call_sites <= 4:
+        site_val = "few_sites"
+        site_score = 18
+        site_detail = f"{call_sites} direct call sites (moderate localization)."
+    elif call_sites <= 10:
+        site_val = "multiple_sites"
+        site_score = 10
+        site_detail = f"{call_sites} direct call sites (multiple touch points across codebase)."
+    else:
+        site_val = "widespread_sites"
+        site_score = 3
+        site_detail = f"{call_sites} direct call sites (high blast radius across codebase)."
+
+    total_agility = min(100, max(0, abs_score + pin_score + site_score))
+    agility_factors = [
+        {"dimension": "abstraction", "value": abs_val, "score": abs_score, "detail": abs_detail},
+        {"dimension": "version_pinning", "value": pin_val, "score": pin_score, "detail": pin_detail},
+        {"dimension": "call_sites", "value": site_val, "count": call_sites, "score": site_score, "detail": site_detail},
+    ]
+
+    effective_risk_score = risk_score if risk_score is not None else (asset.risk_assessment.score if asset.risk_assessment else 0)
+    migration_priority = round(float(effective_risk_score) / max(1.0, float(total_agility)), 2)
+
+    return total_agility, agility_factors, migration_priority
+
+
+def compute_risk_for_asset(
+    db: Session,
+    asset: models.Asset,
+    artefacts: list[models.CryptographicArtefact] | None = None,
+) -> models.RiskAssessment:
     factors = []
     score = 0
 
@@ -161,6 +319,17 @@ def compute_risk_for_asset(db: Session, asset: models.Asset) -> models.RiskAsses
     else:
         risk = models.RiskAssessment(asset_id=asset.id, score=score, severity=severity, factors=factors)
         db.add(risk)
+
+    # Compute crypto-agility score and derived migration priority
+    agility_score, agility_factors, migration_priority = compute_agility_for_asset(
+        db, asset, artefacts=artefacts, risk_score=score
+    )
+    risk.agility_score = agility_score
+    risk.migration_priority = migration_priority
+    asset.agility_score = agility_score
+    asset.agility_factors = agility_factors
+    asset.migration_priority = migration_priority
+
     return risk
 
 

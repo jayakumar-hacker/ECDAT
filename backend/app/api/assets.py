@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/assets", tags=["assets"])
 
 
 @router.get("")
-def list_assets(scan_id: str | None = None, severity: str | None = None,
+def list_assets(scan_id: str | None = None, severity: str | None = None, sort: str | None = None,
                  db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     q = db.query(models.Asset)
     if scan_id:
@@ -17,6 +17,8 @@ def list_assets(scan_id: str | None = None, severity: str | None = None,
     assets = q.all()
     if severity:
         assets = [a for a in assets if a.risk_assessment and a.risk_assessment.severity == severity.upper()]
+    if sort in ("migration_priority", "priority"):
+        assets = sorted(assets, key=lambda a: a.migration_priority or 0.0, reverse=True)
     return [serialize_asset(a) for a in assets]
 
 

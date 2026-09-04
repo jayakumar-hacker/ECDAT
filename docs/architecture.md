@@ -57,7 +57,9 @@ Repository / Files / Container
   and resolve transitive cryptographic provenance.
 - `app/crypto/` — the offline knowledge base, detection patterns, classifier.
 - `app/services/` — orchestration and business logic (scan, risk, CBOM,
-  recommendations, migration, reports).
+  recommendations, migration, reports). Includes crypto-agility scoring
+  (0-100 score based on abstraction mechanism, version pinning, and call-site
+  blast radius) and derived migration priority views.
 - `app/ai/` — deterministic + optional LLM-backed assistant.
 
 ## Data model
@@ -66,7 +68,9 @@ A scan produces `CryptographicArtefact` rows (raw per-file/per-line
 findings). These are grouped into `Asset` rows (one per distinct
 algorithm+location), which is the unit that `RiskAssessment`,
 `MoscaAssessment`, `Recommendation`, and `MigrationPlan` attach to
-one-to-one. `BusinessAsset` rows (Payment API, HR Portal, ...) can be
+one-to-one. Each `Asset` and `RiskAssessment` records an `agility_score`
+and derived `migration_priority` (`risk_score / max(1, agility_score)`).
+`BusinessAsset` rows (Payment API, HR Portal, ...) can be
 linked to `Asset` rows to bring in business context (criticality,
 sensitivity, exposure) that the risk engine and Mosca analysis use.
 

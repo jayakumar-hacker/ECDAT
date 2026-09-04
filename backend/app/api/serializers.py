@@ -20,6 +20,9 @@ def serialize_asset(a: models.Asset) -> dict:
         "id": a.id, "scan_id": a.scan_id, "name": a.name, "asset_type": a.asset_type,
         "algorithm_name": a.algorithm_name, "key_size": a.key_size, "purpose": a.purpose,
         "component": a.component, "location": a.location, "confidence": a.confidence,
+        "agility_score": a.agility_score,
+        "agility_factors": a.agility_factors,
+        "migration_priority": a.migration_priority,
         "business_asset": a.business_asset.name if a.business_asset else None,
         "risk": serialize_risk(a.risk_assessment) if a.risk_assessment else None,
         "mosca": serialize_mosca(a.mosca_assessment) if a.mosca_assessment else None,
@@ -28,7 +31,10 @@ def serialize_asset(a: models.Asset) -> dict:
 
 
 def serialize_risk(r: models.RiskAssessment) -> dict:
-    return {"id": r.id, "asset_id": r.asset_id, "score": r.score, "severity": r.severity, "factors": r.factors}
+    return {
+        "id": r.id, "asset_id": r.asset_id, "score": r.score, "severity": r.severity, "factors": r.factors,
+        "agility_score": r.agility_score, "migration_priority": r.migration_priority,
+    }
 
 
 def serialize_mosca(m: models.MoscaAssessment) -> dict:
@@ -57,6 +63,8 @@ def serialize_migration_plan(p: models.MigrationPlan) -> dict:
         "blockers": p.blockers, "replacement": p.replacement,
         "affected_dependencies": p.affected_dependencies,
         "risk_before": p.risk_before, "risk_after_estimate": p.risk_after_estimate,
+        "agility_score": p.agility_score,
+        "migration_priority": p.migration_priority_score,
     }
 
 

@@ -63,6 +63,8 @@ def build_migration_plan_for_asset(db: Session, asset: models.Asset) -> models.M
         affected_dependencies=affected,
         risk_before=risk.score,
         risk_after_estimate="Estimated",
+        agility_score=asset.agility_score or 50,
+        migration_priority_score=asset.migration_priority or 1.0,
     )
     if existing:
         for k, v in values.items():
