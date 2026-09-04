@@ -86,6 +86,36 @@ treating any ECDAT output as authoritative.
   prediction. ECDAT never states that a quantum computer will exist
   by a specific year.
 
+## Diff-native CI mode
+
+- Diff-native scans (`ecdat scan --since <git-ref>`) resolve the changed-file
+  set with `git diff --name-only` (including untracked files). Only files
+  listed in the diff are fed to the scanners.
+- **What is not covered**: The ref must exist and be reachable from the
+  working tree; ECDAT does not fetch, rebase, or otherwise mutate the
+  repository. Deleted files are reported by git but contain no scannable
+  content. Rename-heavy or history-rewritten branches change what the diff
+  set contains; treat results as "what changed since this ref", not a
+  substitute for a full merge-base analysis. If the git diff fails (e.g. no
+  git repo or an invalid ref), the scan falls back to a full scan and logs a
+  warning rather than failing the pipeline.
+
+## Policy-as-code engine
+
+- Policies are evaluated deterministically and offline against the scan's
+  stored assets and artefacts using package-rule heuristics
+  (`app/services/policy_service.py`).
+- **What is not covered**: The engine is not a general-purpose policy
+  language — it understands the documented rule families (disallowed/lower
+  bounded algorithms with path filters, internet-exposed PQC readiness,
+  minimum agility score, maximum risk score), not arbitrary expressions.
+  `deadline` handling uses the system date and only gates when
+  `enforce_immediately` is `false`. Rule matching is keyword-based, so
+  ambiguous algorithm names may match more or fewer artefacts than a human
+  auditor would report. Findings (and therefore violations) inherit all
+  scanner limitations above — a false negative in a scanner is a false
+  negative in the gate.
+
 ## Migration simulator
 
 - Never fabricates benchmark numbers. Latency, computational overhead,

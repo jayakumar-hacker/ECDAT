@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import tempfile
@@ -212,4 +213,236 @@ rules:
 
         # Running CLI scan should now pass and exit with code 0
         ret_code_clean = main(["scan", tmp, "--scanners", "source"])
+        assert ret_code_clean == 0
+
+
+def test_policy_disallow_algorithms_rule(db_session):
+    policy = {
+        "name": "No Legacy Ciphers Policy",
+        "rules": [
+            {
+                "id": "no-legacy-ciphers",
+                "name": "No RC4 / 3DES",
+                "disallow_algorithms": ["RC4", "3DES", "DES"],
+                "severity": "CRITICAL",
+            }
+        ],
+    }
+
+    scan = models.Scan(target="/tmp/test", status="completed")
+    db_session.add(scan)
+    db_session.flush()
+
+    a_rc4 = models.Asset(scan_id=scan.id, name="RC4 stream", algorithm_name="RC4", location="legacy/net.py:3")
+    a_aes = models.Asset(scan_id=scan.id, name="AES-GCM", algorithm_name="AES", location="modern/crypto.py:9")
+    db_session.add_all([a_rc4, a_aes])
+    db_session.flush()
+
+    db_session.add(models.CryptographicArtefact(
+        scan_id=scan.id, asset_id=a_rc4.id, algorithm="RC4", file="legacy/net.py", line=3,
+    ))
+    db_session.add(models.CryptographicArtefact(
+        scan_id=scan.id, asset_id=a_aes.id, algorithm="AES-256-GCM", file="modern/crypto.py", line=9,
+    ))
+    db_session.commit()
+
+    violations = evaluate_policy(policy, scan, db_session)
+    assert len(violations) == 1
+    assert violations[0]["rule_id"] == "no-legacy-ciphers"
+    assert "RC4" in violations[0]["algorithm"]
+    assert "legacy/net.py" in violations[0]["file"]
+
+
+def test_policy_include_paths_filter(db_session):
+    policy = {
+        "name": "No MD5 in src",
+        "rules": [
+            {
+                "id": "no-md5-src",
+                "name": "No MD5 under src/**",
+                "algorithm": "MD5",
+                "include_paths": ["**/src/**"],
+                "severity": "HIGH",
+            }
+        ],
+    }
+
+    scan = models.Scan(target="/tmp/test", status="completed")
+    db_session.add(scan)
+    db_session.flush()
+
+    a_src = models.Asset(scan_id=scan.id, name="MD5 in src", algorithm_name="MD5", location="src/hash.py:5")
+    a_tests = models.Asset(scan_id=scan.id, name="MD5 in tests", algorithm_name="MD5", location="tests/hash_test.py:2")
+    db_session.add_all([a_src, a_tests])
+    db_session.flush()
+
+    db_session.add(models.CryptographicArtefact(
+        scan_id=scan.id, asset_id=a_src.id, algorithm="MD5", file="src/hash.py", line=5,
+    ))
+    db_session.add(models.CryptographicArtefact(
+        scan_id=scan.id, asset_id=a_tests.id, algorithm="MD5", file="tests/hash_test.py", line=2,
+    ))
+    db_session.commit()
+
+    violations = evaluate_policy(policy, scan, db_session)
+    # Only the artefact under src/** should flag; the tests/** one is filtered out.
+    assert len(violations) == 1
+    assert "src/hash.py" in violations[0]["file"]
+
+
+def test_policy_min_agility_score_rule(db_session):
+    policy = {
+        "name": "Agility Floor Policy",
+        "rules": [
+            {
+                "id": "agility-floor",
+                "name": "Assets must have agility score >= 70",
+                "min_agility_score": 70,
+                "severity": "MEDIUM",
+            }
+        ],
+    }
+
+    scan = models.Scan(target="/tmp/test", status="completed")
+    db_session.add(scan)
+    db_session.flush()
+
+    a_low = models.Asset(scan_id=scan.id, name="Compile-time constant AES", algorithm_name="AES", agility_score=30, location="static/crypto.py:1")
+    a_high = models.Asset(scan_id=scan.id, name="Provider-injected RSA", algorithm_name="RSA", agility_score=90, location="dynamic/crypto.py:1")
+    db_session.add_all([a_low, a_high])
+    db_session.commit()
+
+    violations = evaluate_policy(policy, scan, db_session)
+    assert len(violations) == 1
+    assert violations[0]["rule_id"] == "agility-floor"
+    assert "30" in violations[0]["message"]
+
+
+def test_policy_max_risk_score_rule(db_session):
+    policy = {
+        "name": "Risk Ceiling Policy",
+        "rules": [
+            {
+                "id": "risk-ceiling",
+                "name": "No asset may exceed risk score 60",
+                "max_risk_score": 60,
+                "severity": "HIGH",
+            }
+        ],
+    }
+
+    scan = models.Scan(target="/tmp/test", status="completed")
+    db_session.add(scan)
+    db_session.flush()
+
+    a_high = models.Asset(scan_id=scan.id, name="TLS 1.0 service", algorithm_name="TLS", location="svc/tls.py:1")
+    a_low = models.Asset(scan_id=scan.id, name="AES-256 vault", algorithm_name="AES", location="vault/crypto.py:1")
+    db_session.add_all([a_high, a_low])
+    db_session.flush()
+
+    db_session.add(models.RiskAssessment(asset_id=a_high.id, score=88, severity="CRITICAL"))
+    db_session.add(models.RiskAssessment(asset_id=a_low.id, score=12, severity="LOW"))
+    db_session.commit()
+
+    violations = evaluate_policy(policy, scan, db_session)
+    assert len(violations) == 1
+    assert violations[0]["rule_id"] == "risk-ceiling"
+    assert "88" in violations[0]["message"]
+
+
+def test_load_policy_returns_none_when_missing():
+    with tempfile.TemporaryDirectory() as tmp:
+        policy_dict, loaded_path = load_policy(tmp)
+        assert policy_dict is None
+        assert loaded_path is None
+
+
+def _write_policy(path: str, rules: list[dict], name: str = "CI Policy") -> str:
+    """Helper: write an ecdat-policy.yaml and return its path."""
+    content = {"version": "1", "name": name, "rules": rules}
+    p = os.path.join(path, "ecdat-policy.yaml")
+    with open(p, "w") as f:
+        yaml.safe_dump(content, f, sort_keys=False)
+    return p
+
+
+def test_cli_json_output(capsys):
+    with tempfile.TemporaryDirectory() as tmp:
+        _write_policy(tmp, [
+            {"id": "no-weak-rsa", "name": "No new RSA < 3072", "algorithm": "RSA", "min_key_size": 3072, "severity": "CRITICAL"},
+        ])
+        with open(os.path.join(tmp, "crypto_impl.py"), "w") as f:
+            f.write("from Crypto.PublicKey import RSA\nkey = RSA.generate(1024)\n")
+
+        ret_code = main(["scan", tmp, "--scanners", "source", "--json"])
+        # Violation present so the gate fails, but output is still valid JSON.
+        assert ret_code == 1
+        out = capsys.readouterr().out
+        report = json.loads(out)
+        assert report["scan_id"]
+        assert report["policy_status"] == "FAIL"
+        assert len(report["policy_violations"]) >= 1
+        assert report["policy_violations"][0]["rule_id"] == "no-weak-rsa"
+
+
+def test_cli_no_fail_on_violation():
+    with tempfile.TemporaryDirectory() as tmp:
+        _write_policy(tmp, [
+            {"id": "no-weak-rsa", "name": "No new RSA < 3072", "algorithm": "RSA", "min_key_size": 3072, "severity": "CRITICAL"},
+        ])
+        with open(os.path.join(tmp, "crypto_impl.py"), "w") as f:
+            f.write("from Crypto.PublicKey import RSA\nkey = RSA.generate(1024)\n")
+
+        # With --no-fail-on-violation the scan reports but does not gate.
+        ret_code = main(["scan", tmp, "--scanners", "source", "--no-fail-on-violation"])
+        assert ret_code == 0
+
+
+def test_cli_check_policy_subcommand():
+    with tempfile.TemporaryDirectory() as tmp:
+        _write_policy(tmp, [
+            {"id": "no-weak-rsa", "name": "No new RSA < 3072", "algorithm": "RSA", "min_key_size": 3072, "severity": "CRITICAL"},
+        ])
+
+        # Phase 1: violating code -> scan gate fails and check-policy later reports FAIL.
+        with open(os.path.join(tmp, "crypto_impl.py"), "w") as f:
+            f.write("from Crypto.PublicKey import RSA\nkey = RSA.generate(1024)\n")
+        assert main(["scan", tmp, "--scanners", "source"]) == 1
+        assert main(["check-policy", tmp]) == 1
+
+        # Phase 2: compliant code -> scan gate passes and check-policy passes.
+        with open(os.path.join(tmp, "crypto_impl.py"), "w") as f:
+            f.write("from Crypto.Cipher import AES\ncipher = AES.new(key, AES.MODE_GCM)\n")
+        assert main(["scan", tmp, "--scanners", "source"]) == 0
+        assert main(["check-policy", tmp]) == 0
+
+
+def test_cli_scan_with_since_flag():
+    with tempfile.TemporaryDirectory() as tmp:
+        _init_git_repo(tmp)
+        _write_policy(tmp, [
+            {"id": "no-weak-rsa", "name": "No new RSA < 3072", "algorithm": "RSA", "min_key_size": 3072, "severity": "CRITICAL"},
+        ])
+
+        # Commit 1: compliant base file.
+        with open(os.path.join(tmp, "base.py"), "w") as f:
+            f.write("from Crypto.Cipher import AES\ncipher = AES.new(key, AES.MODE_GCM)\n")
+        subprocess.run(["git", "add", "."], cwd=tmp, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "initial"], cwd=tmp, check=True, capture_output=True)
+
+        # Commit 2: new file with weak RSA -> should be caught by diff-native scan.
+        with open(os.path.join(tmp, "new_feature.py"), "w") as f:
+            f.write("from Crypto.PublicKey import RSA\nkey = RSA.generate(1024)\n")
+        subprocess.run(["git", "add", "."], cwd=tmp, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "add rsa feature"], cwd=tmp, check=True, capture_output=True)
+
+        # Diff-native scan since HEAD~1 should only see the new weak-RSA file and gate.
+        ret_code = main(["scan", tmp, "--scanners", "source", "--since", "HEAD~1"])
+        assert ret_code == 1
+
+        # Reverting the new file and committing leaves a clean diff -> gate passes.
+        os.remove(os.path.join(tmp, "new_feature.py"))
+        subprocess.run(["git", "add", "."], cwd=tmp, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "drop rsa feature"], cwd=tmp, check=True, capture_output=True)
+        ret_code_clean = main(["scan", tmp, "--scanners", "source", "--since", "HEAD~1"])
         assert ret_code_clean == 0

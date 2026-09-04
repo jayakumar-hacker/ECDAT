@@ -1,0 +1,50 @@
+# ECDAT example policy-as-code configuration.
+# Copy to <repo-root>/ecdat-policy.yaml and adjust to your organization.
+# Evaluated offline and read-only by the `ecdat` CLI (see docs/diff-native-ci.md).
+version: "1"
+name: "Example Enterprise Crypto Policy"
+rules:
+  # --- Rule family 1: disallowed / key-size-restricted algorithms ----
+  - id: no-weak-rsa
+    name: "No new RSA below 3072 bits"
+    algorithm: "RSA"
+    min_key_size: 3072
+    severity: "CRITICAL"
+
+  - id: no-sha1-prod
+    name: "No SHA-1 outside test and legacy code"
+    algorithm: "SHA-1"
+    exclude_paths: ["**/test/**", "**/tests/**", "**/legacy/**"]
+    severity: "HIGH"
+
+  - id: no-md5
+    name: "No MD5 output as a security primitive"
+    algorithm: "MD5"
+    exclude_paths: ["**/test/**", "**/tests/**"]
+    severity: "HIGH"
+
+  - id: no-legacy-ciphers
+    name: "No RC4 / 3DES / DES anywhere"
+    disallow_algorithms: ["RC4", "3DES", "DES"]
+    severity: "CRITICAL"
+
+  # --- Rule family 2: internet-exposed assets must be PQC-ready ----
+  - id: exposed-pqc-ready
+    name: "Internet-exposed assets must be PQC-ready by 2030"
+    condition: "internet_exposed"
+    require_pqc_ready: true
+    deadline: "2030-01-01"
+    enforce_immediately: false
+    severity: "CRITICAL"
+
+  # --- Rule family 3: minimum crypto-agility score ----
+  - id: agility-floor
+    name: "Critical assets need an agility score of at least 70"
+    min_agility_score: 70
+    severity: "MEDIUM"
+
+  # --- Rule family 4: maximum risk score ----
+  - id: risk-ceiling
+    name: "No asset may exceed risk score 60"
+    max_risk_score: 60
+    severity: "HIGH"

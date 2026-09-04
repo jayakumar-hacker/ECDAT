@@ -43,6 +43,10 @@ Repository / Files / Container
         Reports + Dashboard     app/services/report_service.py, app/api/dashboard.py
               |
           AI Assistant          app/ai/assistant.py
+              |
+      Diff-native CI mode        app/services/scan_service.py (git diff file_filter)
+              |
+      Policy-as-Code Gate        app/services/policy_service.py + app/cli.py
 ```
 
 ## Backend layout
@@ -59,7 +63,11 @@ Repository / Files / Container
 - `app/services/` — orchestration and business logic (scan, risk, CBOM,
   recommendations, migration, reports). Includes crypto-agility scoring
   (0-100 score based on abstraction mechanism, version pinning, and call-site
-  blast radius) and derived migration priority views.
+  blast radius), derived migration priority views, and the policy-as-code
+  evaluation engine (`policy_service.py`).
+- `app/cli.py` — the `ecdat` command-line interface, including diff-native
+  CI mode (`ecdat scan --since <git-ref>`) and the policy gate
+  (`ecdat check-policy`). See `docs/diff-native-ci.md`.
 - `app/ai/` — deterministic + optional LLM-backed assistant.
 
 ## Data model
@@ -73,6 +81,29 @@ and derived `migration_priority` (`risk_score / max(1, agility_score)`).
 `BusinessAsset` rows (Payment API, HR Portal, ...) can be
 linked to `Asset` rows to bring in business context (criticality,
 sensitivity, exposure) that the risk engine and Mosca analysis use.
+
+Each `Scan` also records `since_git_ref` (when run in diff-native mode),
+`policy_status` (`NOT_RUN` / `PASS` / `FAIL`) and `policy_violations`
+(the resolved list of violated rules), so CI gates and the dashboard can
+surface policy results without re-running the scan.
+
+## Diff-native CI mode and policy gate
+
+The `ecdat` CLI adds a gate-friendly layer on top of the scan pipeline:
+
+- **Diff-native scans** (`ecdat scan <target> --since <git-ref>`) resolve
+  the set of files changed since a git ref via `git diff --name-only` and
+  pass that set as a `file_filter` to every scanner. Only files in the diff
+  are examined, so a PR gate sees only what the PR introduced.
+- **Policy-as-code gating** (`ecdat scan <target> --policy ecdat-policy.yaml`
+  or `ecdat check-policy`) evaluates repository-level YAML rules against the
+  scan's assets and artefacts. Exit codes are `0` (pass), `1` (violations /
+  gate closed) and `2` (no policy or no scan found). `--json` emits a
+  machine-readable report and `--no-fail-on-violation` reports without
+  closing the gate.
+
+See `docs/diff-native-ci.md` for the rule reference and a copy-paste CI
+snippet.
 
 ## Frontend layout
 

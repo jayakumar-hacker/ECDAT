@@ -29,6 +29,10 @@ scans.
   hard-coded.
 - **AI Assistant**: works fully offline in deterministic mode by
   default; optional Ollama/OpenAI-compatible backend.
+- **Diff-native CI mode + policy gate**: the `ecdat` CLI scans only what
+  changed since a git ref and enforces repository-level
+  `ecdat-policy.yaml` rules, with machine-readable JSON output and
+  merge-gate exit codes — see `docs/diff-native-ci.md`.
 - **Demo repository**: 6 fictional systems (Payment API, Auth Service,
   HR Portal, Public Website, Legacy App, IoT Service) across
   Python/JS/Java/Go/C/Rust with intentionally varied crypto usage,
@@ -132,6 +136,29 @@ curl -s -X POST http://localhost:8000/api/scans \
   -d '{"target":"demo","target_type":"demo","scanners":["source","dependency","certificate","binary","container"]}'
 ```
 
+### CLI: diff-native CI mode + policy gate
+
+The `ecdat` CLI runs scans and enforces policy-as-code rules without the
+web UI. It is fully offline and read-only. See `docs/diff-native-ci.md`
+for the complete rule reference and a copy-paste CI snippet.
+
+```bash
+# One-shot: scan only what changed since `main`, enforcing policy rules.
+ecdat scan . --since main --policy ecdat-policy.yaml
+
+# Same, but emit machine-readable JSON (ideal for CI parsing).
+ecdat scan . --since main --policy ecdat-policy.yaml --json
+
+# Report violations on an existing scan without closing the gate.
+ecdat check-policy . --policy ecdat-policy.yaml
+
+# Scan all files and never fail on policy violations (report only).
+ecdat scan . --no-fail-on-violation
+```
+
+Exit codes: `0` = pass, `1` = policy violations found, `2` = no policy file
+or no scan found.
+
 ## API documentation
 
 Interactive OpenAPI docs are available at `http://localhost:8000/docs`
@@ -157,8 +184,8 @@ GET    /health
 ## Testing
 
 ```bash
-# Backend (63 tests: scanners, risk/Mosca math, recommendations,
-# migration, CBOM, auth API, scan API)
+# Backend (98 tests: scanners, risk/Mosca math, recommendations,
+# migration, CBOM, auth API, scan API, CLI, policy gate)
 cd backend && source .venv/bin/activate && python -m pytest tests/ -v
 
 # Frontend (component tests)
