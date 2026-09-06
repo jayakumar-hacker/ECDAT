@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.models import models
-from app.schemas.schemas import ReportRequest
+from app.scanners.schemas.schemas import ReportRequest
 from app.services.report_service import build_report_data, export_json, export_csv, export_pdf
 from app.core.config import settings
 

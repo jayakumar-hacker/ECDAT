@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.models import models
-from app.schemas.schemas import AIChatRequest
+from app.scanners.schemas.schemas import AIChatRequest
 from app.ai.assistant import answer_question
 from app.core.config import settings
 

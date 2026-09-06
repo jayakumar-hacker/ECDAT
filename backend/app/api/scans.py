@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.api.serializers import serialize_scan, serialize_asset
 from app.models import models
-from app.schemas.schemas import ScanCreateRequest
+from app.scanners.schemas.schemas import ScanCreateRequest
 from app.services.scan_service import run_scan, VALID_SCANNERS
 from app.services.recommendation_service import build_recommendations_for_scan
 from app.services.migration_service import build_migration_plans_for_scan

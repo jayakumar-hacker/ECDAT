@@ -4,7 +4,7 @@ from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.api.serializers import serialize_migration_plan
 from app.models import models
-from app.schemas.schemas import MigrationSimulateRequest
+from app.scanners.schemas.schemas import MigrationSimulateRequest
 from app.services.migration_service import simulate_migration
 
 router = APIRouter(prefix="/api/migration-plans", tags=["migration"])

@@ -4,7 +4,7 @@ from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.api.serializers import serialize_mosca
 from app.models import models
-from app.schemas.schemas import MoscaSimulateRequest
+from app.scanners.schemas.schemas import MoscaSimulateRequest
 from app.services.risk_service import compute_mosca_for_asset
 
 router = APIRouter(prefix="/api/mosca", tags=["mosca"])
