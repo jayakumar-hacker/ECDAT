@@ -1,0 +1,70 @@
+{
+  "target": "demo-data/repositories/acme-corp",
+  "description": "Annotated ground-truth expected cryptographic findings for the bundled Acme Corp demo repository",
+  "version": "1.0",
+  "expected_findings": {
+    "source": [
+      { "file": "auth-service/src/tokens.js", "algorithm": "RSA-4096", "purpose": "key_establishment" },
+      { "file": "auth-service/src/tokens.js", "algorithm": "ECDSA", "purpose": "digital_signature" },
+      { "file": "auth-service/src/tokens.js", "algorithm": "ECDH", "purpose": "key_establishment" },
+      { "file": "auth-service/src/tokens.js", "algorithm": "Ed25519", "purpose": "digital_signature" },
+      { "file": "auth-service/src/tokens.js", "algorithm": "AES-128", "purpose": "encryption" },
+      { "file": "auth-service/src/tokens.js", "algorithm": "AES-GCM", "purpose": "encryption" },
+      { "file": "hr-portal/src/LegacySecurityUtils.java", "algorithm": "RSA-2048", "purpose": "key_establishment" },
+      { "file": "hr-portal/src/LegacySecurityUtils.java", "algorithm": "AES-128", "purpose": "encryption" },
+      { "file": "hr-portal/src/LegacySecurityUtils.java", "algorithm": "AES-256", "purpose": "encryption" },
+      { "file": "hr-portal/src/LegacySecurityUtils.java", "algorithm": "DES", "purpose": "encryption" },
+      { "file": "hr-portal/src/LegacySecurityUtils.java", "algorithm": "SHA-1", "purpose": "hashing" },
+      { "file": "iot-service/src/telemetry.rs", "algorithm": "ChaCha20-Poly1305", "purpose": "encryption" },
+      { "file": "iot-service/src/telemetry.rs", "algorithm": "Ed25519", "purpose": "digital_signature" },
+      { "file": "iot-service/src/telemetry.rs", "algorithm": "SHA-256", "purpose": "hashing" },
+      { "file": "legacy-app/src/crypto_utils.c", "algorithm": "RSA-1024", "purpose": "key_establishment" },
+      { "file": "legacy-app/src/crypto_utils.c", "algorithm": "3DES", "purpose": "encryption" },
+      { "file": "legacy-app/src/crypto_utils.c", "algorithm": "DES", "purpose": "encryption" },
+      { "file": "legacy-app/src/crypto_utils.c", "algorithm": "MD5", "purpose": "hashing" },
+      { "file": "payment-api/src/auth.py", "algorithm": "RSA-2048", "purpose": "key_establishment" },
+      { "file": "payment-api/src/auth.py", "algorithm": "AES-256", "purpose": "encryption" },
+      { "file": "payment-api/src/auth.py", "algorithm": "AES-GCM", "purpose": "encryption" },
+      { "file": "payment-api/src/auth.py", "algorithm": "SHA-256", "purpose": "hashing" },
+      { "file": "payment-api/src/auth.py", "algorithm": "TLS 1.3", "purpose": "protocol" },
+      { "file": "public-website/src/server.go", "algorithm": "ECDSA", "purpose": "digital_signature" },
+      { "file": "public-website/src/server.go", "algorithm": "SHA-256", "purpose": "hashing" },
+      { "file": "public-website/src/server.go", "algorithm": "TLS 1.2", "purpose": "protocol" }
+    ],
+    "dependency": [
+      { "file": "auth-service/package.json", "library": "jsonwebtoken", "algorithm": "HMAC" },
+      { "file": "auth-service/package.json", "library": "jsonwebtoken", "algorithm": "RSA" },
+      { "file": "auth-service/package.json", "library": "node-forge", "algorithm": "AES-128" },
+      { "file": "auth-service/package.json", "library": "node-forge", "algorithm": "RSA" },
+      { "file": "hr-portal/pom.xml", "library": "bcprov-jdk18on", "algorithm": "RSA" },
+      { "file": "hr-portal/pom.xml", "library": "bcprov-jdk18on", "algorithm": "ECDSA" },
+      { "file": "hr-portal/pom.xml", "library": "bcprov-jdk18on", "algorithm": "AES-256" },
+      { "file": "hr-portal/pom.xml", "library": "spring-security-crypto", "algorithm": "AES-256" },
+      { "file": "iot-service/Cargo.toml", "library": "ring", "algorithm": "ChaCha20-Poly1305" },
+      { "file": "iot-service/Cargo.toml", "library": "ring", "algorithm": "ECDSA" },
+      { "file": "iot-service/Cargo.toml", "library": "ring", "algorithm": "SHA-256" },
+      { "file": "payment-api/requirements.txt", "library": "cryptography", "algorithm": "AES-256" },
+      { "file": "payment-api/requirements.txt", "library": "cryptography", "algorithm": "RSA" },
+      { "file": "payment-api/requirements.txt", "library": "cryptography", "algorithm": "ECDSA" },
+      { "file": "payment-api/requirements.txt", "library": "pycryptodome", "algorithm": "3DES" }
+    ],
+    "certificate": [
+      { "file": "auth-service/api-acme-example.crt", "algorithm": "ECDSA", "type": "public_key" },
+      { "file": "auth-service/api-acme-example.crt", "algorithm": "SHA-256", "type": "signature" },
+      { "file": "legacy-app/certs/expired-acme-example.crt", "algorithm": "RSA", "type": "public_key" },
+      { "file": "legacy-app/certs/expired-acme-example.crt", "algorithm": "SHA-256", "type": "signature" },
+      { "file": "legacy-app/certs/legacy-acme-example.crt", "algorithm": "RSA", "type": "public_key" },
+      { "file": "legacy-app/certs/legacy-acme-example.crt", "algorithm": "SHA-1", "type": "signature" },
+      { "file": "payment-api/certs/payment-acme-example.crt", "algorithm": "RSA", "type": "public_key" },
+      { "file": "payment-api/certs/payment-acme-example.crt", "algorithm": "SHA-256", "type": "signature" }
+    ],
+    "container": [
+      { "file": "legacy-app/Dockerfile", "package": "openssl", "algorithm": "RSA" },
+      { "file": "legacy-app/Dockerfile", "package": "openssl", "algorithm": "AES-256" },
+      { "file": "legacy-app/Dockerfile", "package": "openssl", "algorithm": "TLS 1.3" },
+      { "file": "payment-api/Dockerfile", "package": "libssl-dev", "algorithm": "RSA" },
+      { "file": "payment-api/Dockerfile", "package": "libssl-dev", "algorithm": "AES-256" },
+      { "file": "payment-api/Dockerfile", "package": "libssl-dev", "algorithm": "TLS 1.3" }
+    ]
+  }
+}

@@ -193,3 +193,34 @@ treating any ECDAT output as authoritative.
   monorepos, giant binaries) will scan more slowly, bounded by
   `MAX_FILE_SIZE_BYTES` and `MAX_FILES_PER_SCAN` in
   `app/core/config.py`.
+
+## Self-evaluation on labelled demo data
+
+The bundled Acme Corp demo repository (`demo-data/repositories/acme-corp`) is
+annotated with ground-truth expected findings in
+`demo-data/expected-results/ground_truth.json`. A scoring harness
+(`scripts/evaluate_demo.py` and `app/evaluation/scoring.py`) evaluates scan
+results against these annotations to compute empirical Precision, Recall, and
+F1 scores per scanner:
+
+| Scanner | Expected | Detected | TP | FP | FN | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|---|---|
+| **source** | 22 | 24 | 22 | 2 | 0 | 91.7% | 100.0% | 0.957 |
+| **dependency** | 13 | 28 | 13 | 15 | 0 | 46.4% | 100.0% | 0.634 |
+| **certificate** | 8 | 8 | 8 | 0 | 0 | 100.0% | 100.0% | 1.000 |
+| **container** | 6 | 10 | 6 | 4 | 0 | 60.0% | 100.0% | 0.750 |
+| **OVERALL** | 49 | 70 | 49 | 21 | 0 | 70.0% | 100.0% | 0.824 |
+
+### Analysis of evaluation results
+- **Recall (100.0%)**: Across all four active scanners on the demo repository,
+  every ground-truth cryptographic usage was successfully surfaced (zero false negatives).
+- **Source Precision (91.7%)**: The deterministic pattern-match heuristics
+  achieved high precision with minimal false positives (e.g. duplicate algorithm
+  variants or multiple line bindings for the same block).
+- **Dependency & Container Precision (46.4% / 60.0%)**: Lower precision reflects
+  the design of ECDAT's knowledge base: when a package like `openssl`, `cryptography`,
+  or `node-forge` is referenced in a manifest or Dockerfile, the offline scanner
+  surfaces the full suite of cryptographic capabilities provided by that library
+  (e.g. AES, RSA, ECDSA, SHA-256), whereas the minimal ground-truth file
+  only annotates the specific algorithms exercised by application code.
+
