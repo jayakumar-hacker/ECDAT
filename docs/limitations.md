@@ -138,6 +138,25 @@ treating any ECDAT output as authoritative.
     low-confidence scanner finding are still flagged (exposure/shelf-life
     are not confidence-weighted).
 
+## AI-authored / copy-pasted crypto provenance heuristic
+
+- The `provenance_risk` flag on `CryptographicArtefact` (`app/crypto/provenance.py`)
+  is a **deterministic regex-based heuristic, not an ML classifier**. It makes
+  no claim about the true author of the code; it only flags a small set of
+  precise tutorial-boilerplate patterns (e.g. hardcoded IV/salt/key literals,
+  explicit ECB mode, textbook `plaintext`/`ciphertext` string bindings) that are
+  strongly correlated with copy-pasted or unreviewed crypto code.
+- **False positive risk**: Benign code that uses textbook variable names with
+  literal values (for example in unit test fixtures, mock data, or documentation
+  examples) will be flagged as `ai_suspected`.
+- **False negative risk**: AI-generated code written idiomatically (e.g. fetching
+  keys from environment variables or vaults, or using variable names not in the
+  small literal pattern list) will **not** be flagged and will remain `unknown`.
+  A status of `unknown` must **never** be taken as proof of human authorship or
+  security.
+- The `human_reviewed` status is strictly a manual triage state and is never
+  set automatically.
+
 ## Migration simulator
 
 - Never fabricates benchmark numbers. Latency, computational overhead,

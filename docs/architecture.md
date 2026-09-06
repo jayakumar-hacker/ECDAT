@@ -134,6 +134,24 @@ columns on `Asset`; no scanner output or risk-model shape changes. The view
 is exposed as an **additional section** in the existing JSON/CSV report
 exports (never a replacement).
 
+## Provenance-risk heuristic (AI-authored / copy-pasted crypto flag)
+
+The source scanner annotates every `CryptographicArtefact` with
+`provenance_risk` (`unknown` | `ai_suspected` | `human_reviewed`, default
+`unknown`). Only the source scanner sets `ai_suspected`, and only when a
+deterministic pattern (`app/crypto/provenance.py`) matches tutorial
+boilerplate: hardcoded IV/salt/nonce/key literals (including the immediately
+preceding line), explicit ECB mode, or `plaintext`/`ciphertext` bound to a
+literal string. This is **not ML or AI-detection** — it is a small, precise
+regex rule set (false positives are treated as worse than missed
+detections), and `human_reviewed` is a manual-review state, never set
+automatically.
+
+The field is consumable by the F13 policy engine as an **additional rule
+key** (`provenance_risk: ai_suspected`), so a repository can require human
+sign-off on AI-suspected crypto without changing the policy schema shape.
+See `docs/diff-native-ci.md`.
+
 ## Frontend layout
 
 React + TypeScript + Vite + Tailwind, talking to the backend over

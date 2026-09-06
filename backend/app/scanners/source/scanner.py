@@ -83,8 +83,12 @@ def scan_source(root: str, errors: list, max_files: int | None = None, file_filt
 
         files_scanned += 1
         rel_path = path
+        prev_line: str | None = None
         for i, line in enumerate(lines, start=1):
-            line_findings = classify_line(line, rel_path, i, language)
+            stripped = line.strip()
+            line_findings = classify_line(line, rel_path, i, language, prev_line=prev_line)
             findings.extend(line_findings)
+            if stripped:
+                prev_line = line
 
     return dedupe_findings(findings), files_scanned

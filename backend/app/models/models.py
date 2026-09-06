@@ -231,6 +231,11 @@ class CryptographicArtefact(Base):
     library = Column(String, default="")
     protocol = Column(String, default="")
     certificate_id = Column(String, nullable=True)
+    # Tier 2 - provenance risk heuristic (set only by the source scanner).
+    # unknown | ai_suspected | human_reviewed. Default "unknown" for all
+    # detection paths; only the source scanner sets "ai_suspected" when a
+    # tutorial-boilerplate pattern matches. See app/crypto/provenance.py.
+    provenance_risk = Column(String, default="unknown")
 
     scan = relationship("Scan", back_populates="artefacts")
 

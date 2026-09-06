@@ -10,6 +10,7 @@ Confidence adjustment rules (documented, deterministic - not ML):
 """
 import re
 from app.crypto.algorithms import RULES
+from app.crypto.provenance import assess_provenance_risk, PROVENANCE_UNKNOWN
 
 COMMENT_PREFIXES = ("#", "//", "*", "--")
 
@@ -19,10 +20,20 @@ def _looks_like_comment(line: str) -> bool:
     return any(stripped.startswith(p) for p in COMMENT_PREFIXES)
 
 
-def classify_line(line: str, file_path: str, line_no: int, language: str) -> list[dict]:
-    """Return zero or more findings for a single line of source/config text."""
+def classify_line(line: str, file_path: str, line_no: int, language: str,
+                  prev_line: str | None = None) -> list[dict]:
+    """Return zero or more findings for a single line of source/config text.
+
+    `prev_line` optionally carries the immediately preceding non-empty line so
+    the provenance-risk heuristic can catch tutorial boilerplate where the
+    hardcoded literal (e.g. `iv = b"0000..."`) sits on the line before the
+    crypto call. Still strictly line-windowed - no AST or data-flow.
+    """
     findings = []
     is_comment = _looks_like_comment(line)
+    provenance_risk = assess_provenance_risk(line)
+    if provenance_risk == PROVENANCE_UNKNOWN and prev_line:
+        provenance_risk = assess_provenance_risk(prev_line)
     for rule in RULES:
         m = rule.pattern.search(line)
         if not m:
@@ -48,6 +59,7 @@ def classify_line(line: str, file_path: str, line_no: int, language: str) -> lis
             "purpose": rule.purpose,
             "confidence": round(confidence, 2),
             "evidence": line.strip()[:240],
+            "provenance_risk": provenance_risk,
         })
     return findings
 

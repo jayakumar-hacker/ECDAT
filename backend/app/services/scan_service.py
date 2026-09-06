@@ -115,7 +115,7 @@ def run_scan(
                         scan_id=scan.id, artefact_type="source", algorithm=f["algorithm"],
                         file=f["file"], line=f["line"], language=f["language"], usage=f["usage"],
                         key_size=f["key_size"], purpose=f["purpose"], confidence=f["confidence"],
-                        evidence=f["evidence"],
+                        evidence=f["evidence"], provenance_risk=f.get("provenance_risk", "unknown"),
                     )
                     db.add(artefact)
                     artefact_count += 1

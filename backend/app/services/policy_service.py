@@ -263,6 +263,37 @@ def evaluate_policy(policy: dict, scan: models.Scan, db: Session) -> list[dict]:
                         "detail": f"Risk score: {rscore}/100 ({asset.risk_assessment.severity if asset.risk_assessment else 'UNKNOWN'})",
                     })
 
+        # Rule Type 5: Provenance risk (e.g. provenance_risk: ai_suspected
+        # requires human review / sign-off). Additive rule key; does not change
+        # the policy schema shape. Evaluated against CryptographicArtefact rows.
+        provenance_target = rule.get("provenance_risk")
+        if provenance_target:
+            target_norm = str(provenance_target).strip().lower()
+            for art in artefacts:
+                art_risk = (art.provenance_risk or "unknown").strip().lower()
+                if art_risk != target_norm:
+                    continue
+                file_path = art.file or ""
+                if include_paths and not any(match_glob(file_path, pat) for pat in include_paths):
+                    continue
+                if exclude_paths and any(match_glob(file_path, pat) for pat in exclude_paths):
+                    continue
+                violations.append({
+                    "rule_id": rule_id,
+                    "rule_name": rule_name,
+                    "severity": severity,
+                    "message": (
+                        f"Rule '{rule_name}' violated: finding '{art.algorithm}' in '{file_path}' "
+                        f"has provenance_risk='{art.provenance_risk or 'unknown'}' and requires human "
+                        f"review/sign-off before merge."
+                    ),
+                    "file": file_path,
+                    "line": art.line,
+                    "algorithm": art.algorithm,
+                    "asset_name": art.usage or art.algorithm,
+                    "detail": f"provenance_risk={art.provenance_risk or 'unknown'}",
+                })
+
     # Deduplicate violations by (rule_id, file, line, algorithm)
     deduped: list[dict] = []
     seen = set()
