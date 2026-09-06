@@ -50,7 +50,13 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Override the shelf-life threshold in years (default from settings)")
     hndl_p.add_argument("--json", action="store_true", help="Output results in JSON format")
 
+    # Drift command
+    drift_p = subparsers.add_parser("drift", help="Crypto-posture drift dashboard across historical scans")
+    drift_p.add_argument("target", nargs="?", default=None, help="Target directory to evaluate drift for (default: most recent target)")
+    drift_p.add_argument("--json", action="store_true", help="Output results in JSON format")
+
     return parser
+
 
 
 def main(args: list[str] | None = None) -> int:
@@ -62,7 +68,9 @@ def main(args: list[str] | None = None) -> int:
         parser.print_help()
         return 0
 
-    target = os.path.abspath(parsed.target)
+    # Resolve target path — drift allows None (meaning "most recent scan")
+    target = os.path.abspath(parsed.target) if getattr(parsed, "target", None) else None
+
 
     if parsed.command == "scan":
         scanners_list = None
@@ -197,7 +205,42 @@ def main(args: list[str] | None = None) -> int:
         finally:
             db.close()
 
+    elif parsed.command == "drift":
+        from app.services.drift_service import compute_posture_drift
+        db = SessionLocal()
+        try:
+            target = os.path.abspath(parsed.target) if parsed.target else None
+            res = compute_posture_drift(db, target=target)
+            if parsed.json:
+                print(json.dumps(res, indent=2))
+            else:
+                print("=" * 72)
+                print("ECDAT Crypto-Posture Drift Trend Dashboard")
+                print(f"Target: {res['target']} | Historical Scans Tracked: {res['scans_tracked']}")
+                print("=" * 72)
+                if not res["history"]:
+                    print("No historical completed scans found for this target.")
+                else:
+                    print(f"{'Timestamp':<20} | {'Vulnerable':<10} | {'PQC %':<7} | {'Avg Priority':<12} | {'Total Artefacts':<15}")
+                    print("-" * 72)
+                    for h in res["history"]:
+                        ts = (h["timestamp"] or "")[:19]
+                        print(f"{ts:<20} | {h['vulnerable_artefacts_count']:<10} | {h['pqc_adoption_percentage']:<6.1f}% | {h['average_migration_priority']:<12.2f} | {h['total_artefacts']:<15}")
+                    if res.get("delta"):
+                        d = res["delta"]
+                        print("-" * 72)
+                        print("Posture Drift Summary:")
+                        print(f"  - Vulnerable Artefacts Delta: {d['vulnerable_artefacts_delta']:+d}")
+                        print(f"  - PQC Adoption Delta:         {d['pqc_adoption_percentage_delta']:+.2f}%")
+                        print(f"  - Avg Migration Priority:     {d['average_migration_priority_delta']:+.2f}")
+                        print(f"  - Overall Posture Improved:   {'YES' if d['posture_improved'] else 'NO'}")
+                print("=" * 72)
+            return 0
+        finally:
+            db.close()
+
     return 0
+
 
 
 if __name__ == "__main__":

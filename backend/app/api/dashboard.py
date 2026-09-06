@@ -3,8 +3,10 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.models import models
+from app.services.drift_service import compute_posture_drift
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+
 
 
 @router.get("")
@@ -74,4 +76,16 @@ def dashboard(scan_id: str | None = None, db: Session = Depends(get_db), user: m
         "asset_type_distribution": asset_type_dist,
         "migration_priority_distribution": migration_priority_dist,
         "certificate_expiry_distribution": cert_expiry_buckets,
+        "posture_drift": compute_posture_drift(db),
     }
+
+
+@router.get("/drift")
+def posture_drift_endpoint(
+    target: str | None = None,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Trend view: vulnerable-artefact count over time, PQC-adoption %, average migration priority."""
+    return compute_posture_drift(db, target=target)
+
