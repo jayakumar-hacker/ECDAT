@@ -54,4 +54,12 @@ def migration_priority_view(scan_id: str | None = None, db: Session = Depends(ge
 
 @router.post("/simulate")
 def simulate(req: MigrationSimulateRequest, user: models.User = Depends(get_current_user)):
-    return simulate_migration(req.current_algorithm, req.proposed_algorithm, req.user_supplied)
+    user_supplied = dict(req.user_supplied or {})
+    if req.language and "language" not in user_supplied:
+        user_supplied["language"] = req.language
+    if req.current_library and "current_library" not in user_supplied:
+        user_supplied["current_library"] = req.current_library
+    if req.purpose and "purpose" not in user_supplied:
+        user_supplied["purpose"] = req.purpose
+    return simulate_migration(req.current_algorithm, req.proposed_algorithm, user_supplied)
+

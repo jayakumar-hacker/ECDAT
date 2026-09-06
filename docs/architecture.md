@@ -152,7 +152,18 @@ key** (`provenance_risk: ai_suspected`), so a repository can require human
 sign-off on AI-suspected crypto without changing the policy schema shape.
 See `docs/diff-native-ci.md`.
 
+## Version-aware remediation drafts
+
+The migration simulator (`POST /api/migration-plans/simulate`) exposes
+concrete, read-only unified diff suggestions based on an offline knowledge table
+(`app/crypto/remediation.py`). The table maps `(language, current_library,
+algorithm, purpose)` tuples to `(target_library, minimum_version,
+replacement_api, hybrid_construction, diff_template)`. Drafts are generated
+offline and deterministically, and are never applied automatically to source
+files.
+
 ## Frontend layout
+
 
 React + TypeScript + Vite + Tailwind, talking to the backend over
 `/api/*` (proxied to `localhost:8000` in dev via `vite.config.ts`).

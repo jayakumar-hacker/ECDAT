@@ -163,6 +163,11 @@ treating any ECDAT output as authoritative.
   and dependency-impact fields default to `"Not measured"` unless the
   caller explicitly supplies real, measured, or clearly-labelled
   estimated/user-supplied values.
+- Remediation drafts (`app/crypto/remediation.py`) provide library-and-version-aware
+  diff suggestions based on an offline knowledge table. These suggestions are
+  **strictly read-only** drafts intended to assist developers during manual
+  code reviews — ECDAT never mutates or applies changes to source repositories.
+
 
 ## AI Assistant
 

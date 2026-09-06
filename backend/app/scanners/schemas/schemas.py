@@ -31,6 +31,9 @@ class MigrationSimulateRequest(BaseModel):
     current_algorithm: str
     proposed_algorithm: str
     user_supplied: dict | None = None
+    language: str | None = None
+    current_library: str | None = None
+    purpose: str | None = None
 
 
 class ReportRequest(BaseModel):

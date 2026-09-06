@@ -12,6 +12,8 @@ state. Never fabricates benchmark numbers - fields default to
 from sqlalchemy.orm import Session
 from app.models import models
 from app.crypto.knowledge_base import get_algorithm
+from app.crypto.remediation import get_remediation_draft
+
 
 
 def _priority_from_score_and_mosca(score: int, mosca_result: str) -> str:
@@ -90,6 +92,14 @@ def simulate_migration(current_algorithm: str, proposed_algorithm: str, user_sup
     def field(name, default="Not measured"):
         return user_supplied.get(name, default)
 
+    remediation = get_remediation_draft(
+        language=user_supplied.get("language"),
+        current_library=user_supplied.get("current_library") or user_supplied.get("library"),
+        algorithm=current_algorithm,
+        purpose=user_supplied.get("purpose") or current_kb.get("category", "key_establishment"),
+        proposed_algorithm=proposed_algorithm,
+    )
+
     return {
         "current": {
             "algorithm": current_algorithm,
@@ -109,4 +119,5 @@ def simulate_migration(current_algorithm: str, proposed_algorithm: str, user_sup
             "migration_complexity": current_kb.get("migration_complexity", "Estimated"),
             "dependency_impact": field("dependency_impact"),
         },
+        "remediation": remediation,
     }
