@@ -68,7 +68,7 @@ export default function InventoryPage() {
             <tbody>
               {filtered.map((a) => (
                 <tr key={a.id}>
-                  <td className="font-medium text-slate-200">{a.algorithm_name}</td>
+                                  <td className="font-medium text-slate-200">{a.algorithm_name}{a.provenance_risk === "ai_suspected" && (<span className="ml-2 bg-orange-600 text-orange-100 px-2 py-0.5 rounded-sm text-xs">AI-suspected crypto</span>)}</td>
                   <td className="text-xs text-slate-400">{a.purpose || "—"}</td>
                   <td>{a.key_size || "—"}</td>
                   <td className="font-mono text-xs text-slate-500 max-w-xs truncate" title={a.location}>

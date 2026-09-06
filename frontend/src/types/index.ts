@@ -1,4 +1,50 @@
-export interface Scan {
+export interface DriftHistory {
+  scan_id: string;
+  target: string;
+  timestamp: string;
+  total_artefacts: number;
+  vulnerable_artefacts_count: number;
+  pqc_artefacts_count: number;
+  pqc_adoption_percentage: number;
+  average_migration_priority: number;
+  total_assets: number;
+  critical_risks: number;
+  high_risks: number;
+}
+
+export interface ScanDriftResponse {
+  target: string;
+  scans_tracked: number;
+  history: DriftHistory[];
+  delta: {
+    vulnerable_artefacts_delta: number;
+    pqc_adoption_percentage_delta: number;
+    average_migration_priority_delta: number;
+    critical_risks_delta: number;
+    posture_improved: boolean;
+  } | null;
+}
+
+// Extend Asset with HNDL fields
+export interface Asset {
+  id: string;
+  scan_id: string;
+  name: string;
+  asset_type: string;
+  algorithm_name: string | null;
+  key_size: number | null;
+  purpose: string;
+  component: string;
+  location: string;
+  confidence: number;
+  business_asset: string | null;
+  risk: RiskAssessment | null;
+  mosca: MoscaAssessment | null;
+  recommendation: Recommendation | null;
+  hndl_exposed?: boolean;
+  hndl_reason?: string;
+}
+
   id: string;
   target: string;
   target_type: string;

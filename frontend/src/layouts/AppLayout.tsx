@@ -18,6 +18,8 @@ const NAV_ITEMS = [
   { to: "/reports", label: "Reports" },
   { to: "/ai-assistant", label: "AI Assistant" },
   { to: "/settings", label: "Settings" },
+  { to: "/posture-drift", label: "Posture Drift" },
+  { to: "/hndl-exposure", label: "HNDL Exposure" },
 ];
 
 export default function AppLayout() {

@@ -18,6 +18,8 @@ import LibrariesPage from "./pages/LibrariesPage";
 import ContainersPage from "./pages/ContainersPage";
 import ReportsPage from "./pages/ReportsPage";
 import AiAssistantPage from "./pages/AiAssistantPage";
+import PostureDriftPage from "./pages/PostureDriftPage";
+import HndlExposurePage from "./pages/HndlExposurePage";
 import SettingsPage from "./pages/SettingsPage";
 
 export default function App() {
@@ -43,6 +45,8 @@ export default function App() {
             <Route path="/containers" element={<ContainersPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/ai-assistant" element={<AiAssistantPage />} />
+            <Route path="/posture-drift" element={<PostureDriftPage />} />
+            <Route path="/hndl-exposure" element={<HndlExposurePage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
