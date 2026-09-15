@@ -35,7 +35,7 @@ export default function AppLayout() {
     <div className="flex h-screen bg-slate-950">
       <aside className="w-60 bg-panel2 border-r border-slate-800 flex flex-col shrink-0">
         <div className="px-4 py-4 border-b border-slate-800">
-          <div className="text-sky-400 font-bold text-lg tracking-tight">ECDAT</div>
+          <div className="text-sky-400 font-bold text-lg tracking-tight">CRYPTORA</div>
           <div className="text-[10px] text-slate-500 uppercase tracking-wide">Crypto Discovery &amp; Analysis</div>
         </div>
         <nav className="flex-1 overflow-y-auto py-2">
